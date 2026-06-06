@@ -162,6 +162,15 @@
                         <span class="text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">Data Source:</span>
                         <span class="font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap truncate">OpenSky Trino DB</span>
                     </div>
+                    <!-- REAL TIME DATA ACQUISITION STATUS MONITOR -->
+                    <div class="flex justify-between items-center gap-2 pt-1 border-t border-slate-200/50 dark:border-slate-800/50">
+                        <span class="text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">Data Status:</span>
+                        <span id="data-status-badge" class="font-bold text-amber-500 dark:text-amber-400 whitespace-nowrap truncate">DEMO FALLBACK</span>
+                    </div>
+                    <div id="data-status-details" class="text-[9.5px] text-slate-500 dark:text-slate-400 leading-tight italic break-all">
+                        Trino credentials not configured. Local data active.
+                    </div>
+                    
                     <div class="flex flex-col space-y-1 pt-1.5 border-t border-slate-200 dark:border-slate-800">
                         <span class="text-[10px] text-slate-400 font-semibold uppercase whitespace-nowrap">Airport:</span>
                         <span id="info-current-airport" class="font-bold text-slate-800 dark:text-slate-100 font-mono text-[11px] truncate">Incheon International Airport (RKSI)</span>
@@ -440,7 +449,7 @@
         // OPENSKY NETWORK TRINO API CONFIGURATION PARAMETERS
         // 사용자가 나중에 입력할 Client ID (Username) 및 Client Secret (Password) 변수 영역
         const OPENSKY_CLIENT_ID = "outinletter-api-client";
-        const OPENSKY_CLIENT_SECRET = "HtCTmp8CyoZw7HchPzyVlRkeLqfGVw09HtCTmp8CyoZw7HchPzyVlRkeLqfGVw09";
+        const OPENSKY_CLIENT_SECRET = "HtCTmp8CyoZw7HchPzyVlRkeLqfGVw09";
         const OPENSKY_TRINO_COORDINATOR_URL = "https://opensky-network.org/trino/v1/statement";
 
         let mapObj;
@@ -539,7 +548,7 @@
 
         // OPENSKY TRINO REST API QUERY ENGINE (비동기 쿼리 전송 및 루프 폴링 메커니즘)
         async function fetchTrinoRawData(callsign) {
-            // 사용자 인증정보가 비어있거나 기본 상태이면 예외 발생하여Fallback 시뮬레이션 트리거
+            // 사용자 인증정보가 비어있거나 기본 상태이면 예외 발생하여 Fallback 시뮬레이션 트리거
             if (!OPENSKY_CLIENT_ID || !OPENSKY_CLIENT_SECRET || OPENSKY_CLIENT_ID.startsWith("YOUR_")) {
                 throw new Error("OpenSky Trino Credentials not configured.");
             }
@@ -632,9 +641,21 @@
                 FLIGHT_DATABASE[flightNumber] = flightData;
             }
 
-            // Show Loading Spinner on Search Button
+            // UI Elements for Data Connection Monitoring
+            const statusBadge = document.getElementById('data-status-badge');
+            const statusDetails = document.getElementById('data-status-details');
+
+            // Show Loading Spinner on Search Button and update status UI
             document.getElementById('search-btn-text').classList.add('hidden');
             document.getElementById('search-loading-spinner').classList.remove('hidden');
+
+            if (statusBadge) {
+                statusBadge.innerText = "QUERYING...";
+                statusBadge.className = "font-bold text-blue-500 whitespace-nowrap truncate animate-pulse";
+            }
+            if (statusDetails) {
+                statusDetails.innerText = `Establishing connection to OpenSky Trino statement API for ${flightData.callsign}...`;
+            }
 
             // 로컬 캐시(localStorage) 조회 후 캐싱된 데이터 존재시 즉시 로드
             const cachedKey = `adsb_cache_${flightNumber}`;
@@ -642,6 +663,15 @@
             if (cachedData) {
                 console.log(`Loaded cached flight tracking data for ${flightNumber} from localStorage`);
                 MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: JSON.parse(cachedData) };
+                
+                if (statusBadge) {
+                    statusBadge.innerText = "LOCAL CACHED";
+                    statusBadge.className = "font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap truncate";
+                }
+                if (statusDetails) {
+                    statusDetails.innerText = "Loaded valid trajectory nodes successfully from local storage database.";
+                }
+
                 document.getElementById('search-btn-text').classList.remove('hidden');
                 document.getElementById('search-loading-spinner').classList.add('hidden');
                 return;
@@ -670,6 +700,14 @@
                         }
                     ];
                     console.log(`Successfully pulled and rendered raw tracks under 10,000ft from OpenSky Trino DB`);
+                    
+                    if (statusBadge) {
+                        statusBadge.innerText = "LIVE ACTIVE";
+                        statusBadge.className = "font-bold text-emerald-500 dark:text-emerald-400 whitespace-nowrap truncate";
+                    }
+                    if (statusDetails) {
+                        statusDetails.innerText = `SUCCESS: Fetched ${rawPoints.length} raw ADS-B vector coordinates below 10,000ft.`;
+                    }
                 }
 
                 // 2. 인증정보 미설정 또는 Trino 에러 발생 시 예외 없이 시뮬레이션 대체 가동
@@ -679,6 +717,14 @@
                     routesData = baseRoutes.map(route => ({
                         ...route
                     }));
+
+                    if (statusBadge) {
+                        statusBadge.innerText = "DEMO FALLBACK";
+                        statusBadge.className = "font-bold text-amber-500 dark:text-amber-400 whitespace-nowrap truncate";
+                    }
+                    if (statusDetails) {
+                        statusDetails.innerText = "Trino credentials unconfigured or connection timed out. Loading local mock trajectories.";
+                    }
                 }
 
                 MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: routesData };
@@ -700,6 +746,14 @@
                 console.error("OpenSky Trino integration failed, falling back to local simulation memory:", err);
                 const baseRoutes = MOCK_SURFACE_ROUTES[flightData.arrCode]?.["arrival"] || [];
                 MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: baseRoutes };
+
+                if (statusBadge) {
+                    statusBadge.innerText = "DEMO FALLBACK";
+                    statusBadge.className = "font-bold text-amber-500 dark:text-amber-400 whitespace-nowrap truncate";
+                }
+                if (statusDetails) {
+                    statusDetails.innerText = `ERR: ${err.message || "Connection refused"}. Local mock telemetry loaded.`;
+                }
             } finally {
                 // Restore search button states
                 document.getElementById('search-btn-text').classList.remove('hidden');
