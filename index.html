@@ -81,7 +81,7 @@
                         FLT OPS MAP
                     </span>
                     <span id="top-submode-title" class="text-[9px] text-slate-500 dark:text-slate-400 font-medium tracking-tight mt-[-2px] whitespace-nowrap truncate hidden sm:block">
-                        Taxi Route Operations Map (Surface)
+                        Taxi Route Operations Map (Surface Split View)
                     </span>
                 </div>
             </div>
@@ -106,7 +106,7 @@
         <!-- 우측 시스템 상태값 및 테마 토글 스위치 -->
         <div class="flex items-center space-x-3 md:space-x-6 text-xs text-slate-500 dark:text-slate-400 font-medium flex-shrink-0">
             <div class="hidden sm:block whitespace-nowrap">Flight Time: <span id="top-data-count-label" class="text-slate-700 dark:text-slate-200 font-bold ml-1">Total 10</span></div>
-            <div class="hidden sm:block whitespace-nowrap">Remote Flight: <span id="top-altitude-label" class="text-slate-700 dark:text-slate-200 font-bold ml-1">Surface</span></div>
+            <div class="hidden sm:block whitespace-nowrap">Remote Flight: <span id="top-altitude-label" class="text-slate-700 dark:text-slate-200 font-bold ml-1">Surface Split</span></div>
             
             <div class="flex items-center space-x-1.5 md:space-x-3 text-slate-400 flex-shrink-0">
                 <!-- 테마 토글 버튼 (라이트 / 다크) -->
@@ -136,7 +136,7 @@
 
         <!-- SIDEBAR FLIGHT & AIRPORT CONFIGURATION BOARD (사이드바 패널) -->
         <aside id="sidebar" class="w-[290px] bg-white dark:bg-[#0b0f19] border-r border-slate-200 dark:border-[#1e293b] flex flex-col overflow-y-auto shrink-0 shadow-sm transition-transform duration-300 z-40
-            absolute lg:relative lg:translate-x-0 -translate-x-full h-full">
+            absolute lg:relative lg:translate-x-0 -translate-x-full h-full animate-fade-in">
             
             <!-- SECTION 1: FLIGHT INFORMATION PANEL -->
             <div class="p-4 border-b border-slate-200 dark:border-[#1e293b]">
@@ -246,39 +246,54 @@
             </div>
         </aside>
 
-        <!-- CENTER MAP PLATFORM CONTAINER (메인 지도 영역) -->
-        <main class="flex-1 flex flex-col min-h-0 relative">
+        <!-- CENTER SPLIT MAP PLATFORM CONTAINER (분할 지도 영역) -->
+        <main class="flex-1 flex flex-col md:flex-row h-full min-h-0 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-[#1e293b] relative">
             
-            <!-- LEAFLET CANVAS MAP -->
-            <div id="map" class="w-full flex-1 z-0 relative"></div>
+            <!-- LEFT MAP: DEPARTURE AIRPORT -->
+            <div class="flex-1 flex flex-col min-h-[50%] md:min-h-0 relative">
+                <div class="bg-slate-100 dark:bg-[#0b0f19] px-4 py-2 border-b border-slate-200 dark:border-[#1e293b] text-xs font-bold text-slate-800 dark:text-slate-200 shrink-0 z-10 shadow-sm flex items-center justify-between">
+                    <span class="flex items-center">
+                        <span class="w-2.5 h-2.5 rounded-full bg-blue-500 mr-2 shadow-sm"></span>
+                        Departure Airport Taxi-out: <span id="dep-icao-title" class="font-mono text-blue-500 ml-1 bg-blue-100 dark:bg-blue-950 px-1.5 rounded">WSSS</span>
+                    </span>
+                    <button onclick="recenterMapFocus('dep')" class="text-[10px] bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 shadow-sm text-slate-600 dark:text-slate-300">Recenter</button>
+                </div>
+                <div id="dep-map" class="flex-1 z-0"></div>
+            </div>
 
-            <!-- COMPASS (North Up) & ZOOM FLOATING BUTTONS (우측 상단 제어 장치) -->
-            <div class="absolute top-3 right-4 z-[400] flex flex-col space-y-2 animate-fade-in">
-                <!-- Compass dial indicator (수직 상향 화살표 교정) -->
+            <!-- RIGHT MAP: ARRIVAL AIRPORT -->
+            <div class="flex-1 flex flex-col min-h-[50%] md:min-h-0 relative">
+                <div class="bg-slate-100 dark:bg-[#0b0f19] px-4 py-2 border-b border-slate-200 dark:border-[#1e293b] text-xs font-bold text-slate-800 dark:text-slate-200 shrink-0 z-10 shadow-sm flex items-center justify-between">
+                    <span class="flex items-center">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 mr-2 shadow-sm"></span>
+                        Arrival Airport Taxi-in: <span id="arr-icao-title" class="font-mono text-emerald-500 ml-1 bg-emerald-100 dark:bg-emerald-950 px-1.5 rounded">RKSI</span>
+                    </span>
+                    <button onclick="recenterMapFocus('arr')" class="text-[10px] bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 shadow-sm text-slate-600 dark:text-slate-300">Recenter</button>
+                </div>
+                <div id="arr-map" class="flex-1 z-0"></div>
+            </div>
+
+            <!-- COMPASS (North Up) & GLOBAL THEME/SATELLITE CONTROLS (공통 제어 도구) -->
+            <div class="absolute top-16 right-4 z-[400] flex flex-col space-y-2 animate-fade-in">
+                <!-- Compass dial indicator -->
                 <div class="bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-[#1e293b] rounded-full w-10 h-10 flex flex-col items-center justify-center text-slate-400 shadow-xl relative">
                     <span class="text-[9px] font-bold text-red-500 font-mono leading-none">N</span>
                     <svg class="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 mt-0.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6"></path>
                     </svg>
                 </div>
-                
-                <!-- Zoom button controls -->
-                <div class="bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-[#1e293b] rounded flex flex-col items-center shadow-xl font-bold">
-                    <button onclick="mapObj.zoomIn()" class="w-8 h-8 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border-b border-slate-200 dark:border-[#1e293b] text-base">+</button>
-                    <button onclick="mapObj.zoomOut()" class="w-8 h-8 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white text-base">&minus;</button>
-                </div>
 
-                <!-- Recenter positioning button -->
-                <button onclick="recenterAirportFocus()" class="bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-[#1e293b] hover:bg-slate-100 dark:hover:bg-slate-800 rounded w-8 h-8 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-xl hover:text-emerald-500 transition-all" title="Recenter Focus">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <!-- Sync Recenter All Maps -->
+                <button onclick="recenterMapFocus('both')" class="bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-[#1e293b] hover:bg-slate-100 dark:hover:bg-slate-800 rounded w-10 h-10 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-xl hover:text-emerald-500 transition-all" title="Recenter All">
+                    <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                     </svg>
                 </button>
                 
-                <!-- Layer toggle button -->
-                <button onclick="toggleSatelliteLayer()" class="bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-[#1e293b] hover:bg-slate-100 dark:hover:bg-slate-800 rounded w-8 h-8 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-xl hover:text-blue-500 transition-all" title="Toggle Satellite">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <!-- Satellite Global Layer Toggle -->
+                <button onclick="toggleSatelliteLayer()" class="bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-[#1e293b] hover:bg-slate-100 dark:hover:bg-slate-800 rounded w-10 h-10 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-xl hover:text-blue-500 transition-all" title="Toggle Satellite">
+                    <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 110 4H5"></path>
                     </svg>
                 </button>
@@ -343,6 +358,28 @@
         // GEOSPATIAL TAXIWAY ROUTES DATABASE (정제된 지상 유도로 선형 정보)
         const MOCK_SURFACE_ROUTES = {
             "RKSI": {
+                "departure": [
+                    {
+                        id: "RKSI_DEP_01",
+                        label: "Gate 111 &rarr; E7 &rarr; RWY 16L",
+                        shortName: "Gate 111 &rarr; RWY 16L",
+                        direction: "north",
+                        baseCount: 7,
+                        points: [
+                            [37.4658, 126.4510], [37.4655, 126.4445], [37.4597, 126.4442], [37.4595, 126.4385], [37.4527, 126.4380], [37.4525, 126.4251]
+                        ]
+                    },
+                    {
+                        id: "RKSI_DEP_02",
+                        label: "Gate 37 &rarr; E7 &rarr; RWY 16L",
+                        shortName: "Gate 37 &rarr; RWY 16L",
+                        direction: "south",
+                        baseCount: 3,
+                        points: [
+                            [37.4528, 126.4500], [37.4555, 126.4490], [37.4552, 126.4382], [37.4527, 126.4380], [37.4525, 126.4251]
+                        ]
+                    }
+                ],
                 "arrival": [
                     {
                         id: "RKSI_ARR_01",
@@ -350,13 +387,9 @@
                         shortName: "16L &rarr; E1 &rarr; E7 &rarr; 111",
                         direction: "north",
                         baseCount: 6,
-                        ratio: "60%",
-                        gate: "Gate 111",
-                        color: "#ef4444",
                         points: [
-                            [37.4525, 126.425], [37.4527, 126.438], [37.4595, 126.438], [37.4597, 126.444], [37.4655, 126.444], [37.4658, 126.451]
-                        ],
-                        labelCoord: [37.4595, 126.438]
+                            [37.4525, 126.4251], [37.4527, 126.4380], [37.4595, 126.4385], [37.4597, 126.4442], [37.4655, 126.4445], [37.4658, 126.4510]
+                        ]
                     },
                     {
                         id: "RKSI_ARR_02",
@@ -364,13 +397,9 @@
                         shortName: "16L &rarr; E1 &rarr; E7 &rarr; 37",
                         direction: "south",
                         baseCount: 3,
-                        ratio: "30%",
-                        gate: "Gate 37",
-                        color: "#f97316",
                         points: [
-                            [37.4525, 126.425], [37.4527, 126.438], [37.4552, 126.438], [37.4555, 126.449], [37.4528, 126.450]
-                        ],
-                        labelCoord: [37.4552, 126.438]
+                            [37.4525, 126.4251], [37.4527, 126.4380], [37.4552, 126.4382], [37.4555, 126.4490], [37.4528, 126.4500]
+                        ]
                     },
                     {
                         id: "RKSI_ARR_03",
@@ -378,32 +407,35 @@
                         shortName: "16L &rarr; W7 &rarr; 38",
                         direction: "west",
                         baseCount: 1,
-                        ratio: "10%",
-                        gate: "Gate 38",
-                        color: "#84cc16",
                         points: [
-                            [37.4525, 126.425], [37.4495, 126.425], [37.4492, 126.439], [37.4515, 126.443], [37.4512, 126.450]
-                        ],
-                        labelCoord: [37.4492, 126.439]
-                    },
-                    {
-                        id: "RKSI_ARR_04",
-                        label: "16L &rarr; W7 &rarr; 39",
-                        shortName: "16L &rarr; W7 &rarr; 39",
-                        direction: "east",
-                        baseCount: 0,
-                        ratio: "0%",
-                        gate: "Gate 39",
-                        color: "#64748b",
-                        dash: true,
-                        points: [
-                            [37.4525, 126.425], [37.4480, 126.425], [37.4478, 126.441], [37.4495, 126.448]
-                        ],
-                        labelCoord: [37.4478, 126.441]
+                            [37.4525, 126.4251], [37.4495, 126.4250], [37.4492, 126.4390], [37.4515, 126.4430], [37.4512, 126.4500]
+                        ]
                     }
                 ]
             },
             "WSSS": {
+                "departure": [
+                    {
+                        id: "WSSS_DEP_01",
+                        label: "Gate C16 &rarr; Taxiway C1 &rarr; RWY 02C",
+                        shortName: "Gate C16 &rarr; RWY 02C",
+                        direction: "north",
+                        baseCount: 6,
+                        points: [
+                            [1.3622, 103.9875], [1.3620, 103.9880], [1.3608, 103.9886], [1.3585, 103.9891], [1.3551, 103.9899], [1.3546, 103.9912], [1.3538, 103.9930], [1.3515, 103.9925], [1.3498, 103.9918], [1.3505, 103.9915]
+                        ]
+                    },
+                    {
+                        id: "WSSS_DEP_02",
+                        label: "Gate C16 &rarr; Taxiway B4 &rarr; RWY 02L",
+                        shortName: "Gate C16 &rarr; RWY 02L",
+                        direction: "west",
+                        baseCount: 4,
+                        points: [
+                            [1.3622, 103.9875], [1.3610, 103.9825], [1.3565, 103.9820], [1.3520, 103.9810]
+                        ]
+                    }
+                ],
                 "arrival": [
                     {
                         id: "WSSS_ARR_01",
@@ -411,13 +443,9 @@
                         shortName: "02C &rarr; Exit D3 &rarr; Gate C16",
                         direction: "south",
                         baseCount: 8,
-                        ratio: "80%",
-                        gate: "Gate C16",
-                        color: "#ef4444",
                         points: [
                             [1.3505, 103.9880], [1.3530, 103.9881], [1.3585, 103.9892], [1.3615, 103.9890], [1.3622, 103.9875]
-                        ],
-                        labelCoord: [1.3585, 103.9892]
+                        ]
                     },
                     {
                         id: "WSSS_ARR_02",
@@ -425,13 +453,35 @@
                         shortName: "20C &rarr; Exit C2 &rarr; Gate C16",
                         direction: "north",
                         baseCount: 2,
-                        ratio: "20%",
-                        gate: "Gate C16",
-                        color: "#84cc16",
                         points: [
                             [1.3780, 103.9920], [1.3720, 103.9912], [1.3660, 103.9902], [1.3622, 103.9875]
-                        ],
-                        labelCoord: [1.3720, 103.9912]
+                        ]
+                    }
+                ]
+            },
+            "RJTT": {
+                "departure": [
+                    {
+                        id: "RJTT_DEP_01",
+                        label: "Gate 112 &rarr; Taxiway E &rarr; RWY 05",
+                        shortName: "112 &rarr; RWY 05",
+                        direction: "south",
+                        baseCount: 7,
+                        points: [
+                            [35.5450, 139.7660], [35.5410, 139.7710], [35.5340, 139.7780], [35.5260, 139.7820]
+                        ]
+                    }
+                ],
+                "arrival": [
+                    {
+                        id: "RJTT_ARR_01",
+                        label: "RWY 34L &rarr; Exit C2 &rarr; Gate 112",
+                        shortName: "34L &rarr; Gate 112",
+                        direction: "east",
+                        baseCount: 9,
+                        points: [
+                            [35.5385, 139.7750], [35.5410, 139.7730], [35.5440, 139.7690], [35.5455, 139.7660]
+                        ]
                     }
                 ]
             }
@@ -448,55 +498,78 @@
 
         // OPENSKY NETWORK TRINO API CONFIGURATION PARAMETERS
         // 사용자가 나중에 입력할 Client ID (Username) 및 Client Secret (Password) 변수 영역
-        const OPENSKY_CLIENT_ID = "outinletter-api-client";
-        const OPENSKY_CLIENT_SECRET = "HtCTmp8CyoZw7HchPzyVlRkeLqfGVw09";
+        const OPENSKY_CLIENT_ID = "YOUR_OPENSKY_TRINO_CLIENT_ID";
+        const OPENSKY_CLIENT_SECRET = "YOUR_OPENSKY_TRINO_CLIENT_SECRET";
         const OPENSKY_TRINO_COORDINATOR_URL = "https://trino.opensky-network.org/v1/statement";
 
-        let mapObj;
-        let routeLayerGroup;
-        let baseLayer, satelliteLayer, lightBaseLayer;
+        // Dual Leaflet Maps Instantiation
+        let depMapObj, arrMapObj;
+        let depRouteLayerGroup, arrRouteLayerGroup;
+        let depBaseLayer, arrBaseLayer;
+        let depSatLayer, arrSatLayer;
+        let depLightLayer, arrLightLayer;
 
-        // Start Map Application 
         function initApp() {
             const flight = FLIGHT_DATABASE[currentFlightId];
 
-            // Setup Leaflet map instance
-            mapObj = L.map('map', {
+            // 1. Initialize Departure Map Instance (Left Pane)
+            depMapObj = L.map('dep-map', {
+                zoomControl: false,
+                attributionControl: false,
+                center: flight.depCenter,
+                zoom: 14.5,
+                maxZoom: 18,
+                minZoom: 10
+            });
+            depSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+            depBaseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+            depLightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
+            depRouteLayerGroup = L.layerGroup().addTo(depMapObj);
+
+            // 2. Initialize Arrival Map Instance (Right Pane)
+            arrMapObj = L.map('arr-map', {
                 zoomControl: false,
                 attributionControl: false,
                 center: flight.arrCenter,
-                zoom: 15,
+                zoom: 14.5,
                 maxZoom: 18,
-                minZoom: 11
+                minZoom: 10
             });
+            arrSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+            arrBaseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+            arrLightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
+            arrRouteLayerGroup = L.layerGroup().addTo(arrMapObj);
 
-            // Map Layer Configurations
-            satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-            baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
-            lightBaseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png');
-
-            // Default startup tiles based on state
-            if (isSatellite) {
-                satelliteLayer.addTo(mapObj);
-            } else {
-                if (document.documentElement.classList.contains('dark')) {
-                    baseLayer.addTo(mapObj);
-                } else {
-                    lightBaseLayer.addTo(mapObj);
-                }
-            }
-
-            routeLayerGroup = L.layerGroup().addTo(mapObj);
-
-            // Add Scale control
-            L.control.scale({
-                position: 'bottomright',
-                metric: true,
-                imperial: false
-            }).addTo(mapObj);
+            // Set Initial layers
+            applyLayersToMaps();
 
             // Populate dashboard
             updateDashboardLayout();
+        }
+
+        function applyLayersToMaps() {
+            // Remove previous
+            depMapObj.removeLayer(depSatLayer);
+            depMapObj.removeLayer(depBaseLayer);
+            depMapObj.removeLayer(depLightLayer);
+            arrMapObj.removeLayer(arrSatLayer);
+            arrMapObj.removeLayer(arrBaseLayer);
+            arrMapObj.removeLayer(arrLightLayer);
+
+            const isDark = document.documentElement.classList.contains('dark');
+
+            if (isSatellite) {
+                depSatLayer.addTo(depMapObj);
+                arrSatLayer.addTo(arrMapObj);
+            } else {
+                if (isDark) {
+                    depBaseLayer.addTo(depMapObj);
+                    arrBaseLayer.addTo(arrMapObj);
+                } else {
+                    depLightLayer.addTo(depMapObj);
+                    arrLightLayer.addTo(arrMapObj);
+                }
+            }
         }
 
         // Toggles Sidebar in narrow screens / drawers
@@ -519,9 +592,10 @@
                 backdrop.classList.add('hidden');
             }
 
-            // Invalidate map size after animation finishes to ensure no gray areas
+            // Invalidate maps to fix Leaflet gray tile rendering
             setTimeout(() => {
-                if (mapObj) mapObj.invalidateSize();
+                if (depMapObj) depMapObj.invalidateSize();
+                if (arrMapObj) arrMapObj.invalidateSize();
             }, 300);
         }
 
@@ -531,18 +605,11 @@
             if (html.classList.contains('dark')) {
                 html.classList.remove('dark');
                 html.classList.add('light');
-                if (!isSatellite) {
-                    mapObj.removeLayer(baseLayer);
-                    lightBaseLayer.addTo(mapObj);
-                }
             } else {
                 html.classList.remove('light');
                 html.classList.add('dark');
-                if (!isSatellite) {
-                    mapObj.removeLayer(lightBaseLayer);
-                    baseLayer.addTo(mapObj);
-                }
             }
+            applyLayersToMaps();
             updateDashboardLayout();
         }
 
@@ -644,7 +711,6 @@
                     depName: "Singapore Changi Airport",
                     arrCode: "RKSI",
                     arrName: "Seoul Incheon Int'l Airport",
-                    airportNameKo: "Incheon International Airport RKSI",
                     depCenter: [1.3644, 103.9915],
                     arrCenter: [37.4550, 126.4380]
                 };
@@ -664,7 +730,7 @@
                 statusBadge.className = "font-bold text-blue-500 whitespace-nowrap truncate animate-pulse";
             }
             if (statusDetails) {
-                statusDetails.innerText = `Establishing connection to OpenSky Trino statement API for ${flightData.callsign}...`;
+                statusDetails.innerText = `Connecting to OpenSky Trino API for ${flightData.callsign}...`;
             }
 
             // 로컬 캐시(localStorage) 조회 후 캐싱된 데이터 존재시 즉시 로드
@@ -672,14 +738,16 @@
             const cachedData = localStorage.getItem(cachedKey);
             if (cachedData) {
                 console.log(`Loaded cached flight tracking data for ${flightNumber} from localStorage`);
-                MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: JSON.parse(cachedData) };
+                const parsed = JSON.parse(cachedData);
+                MOCK_SURFACE_ROUTES[flightData.depCode] = { departure: parsed.departure };
+                MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: parsed.arrival };
                 
                 if (statusBadge) {
                     statusBadge.innerText = "LOCAL CACHED";
                     statusBadge.className = "font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap truncate";
                 }
                 if (statusDetails) {
-                    statusDetails.innerText = "Loaded valid trajectory nodes successfully from local storage database.";
+                    statusDetails.innerText = "Loaded trajectory coordinates successfully from local cache storage.";
                 }
 
                 document.getElementById('search-btn-text').classList.remove('hidden');
@@ -688,57 +756,83 @@
             }
 
             try {
-                let routesData = null;
+                let depRoutes = null;
+                let arrRoutes = null;
+                let rawPoints = null;
 
-                // 1. OpenSky Trino Raw DB 호출 시도
-                const rawPoints = await fetchTrinoRawData(flightData.callsign);
-                
-                if (rawPoints && rawPoints.length > 1) {
-                    // Trino 데이터 연동 가공
-                    routesData = [
-                        {
-                            id: `${flightData.arrCode}_TRINO_LIVE_01`,
-                            label: `Trino DB: ${flightData.callsign}`,
-                            shortName: "TRINO LIVE (<10K ft)",
-                            direction: "north",
-                            baseCount: 10,
-                            ratio: "100%",
-                            gate: "Gate 111",
-                            color: "#ef4444",
-                            points: rawPoints.map(p => [p[0], p[1]]), // [latitude, longitude]
-                            labelCoord: rawPoints[Math.floor(rawPoints.length / 2)]
-                        }
-                    ];
-                    console.log(`Successfully pulled and rendered raw tracks under 10,000ft from OpenSky Trino DB`);
+                const isTrinoConfigured = OPENSKY_CLIENT_ID && OPENSKY_CLIENT_SECRET && !OPENSKY_CLIENT_ID.startsWith("YOUR_");
+
+                // 1. OpenSky Trino Raw DB 호출 시도 (인증정보가 설정된 경우에만 실행)
+                if (isTrinoConfigured) {
+                    rawPoints = await fetchTrinoRawData(flightData.callsign);
                     
-                    if (statusBadge) {
-                        statusBadge.innerText = "LIVE ACTIVE";
-                        statusBadge.className = "font-bold text-emerald-500 dark:text-emerald-400 whitespace-nowrap truncate";
-                    }
-                    if (statusDetails) {
-                        statusDetails.innerText = `SUCCESS: Fetched ${rawPoints.length} raw ADS-B vector coordinates below 10,000ft.`;
+                    if (rawPoints && rawPoints.length > 1) {
+                        // Separate points by closeness to Departure center vs Arrival center
+                        const depPoints = [];
+                        const arrPoints = [];
+                        
+                        rawPoints.forEach(p => {
+                            const dToDep = Math.hypot(p[0] - flightData.depCenter[0], p[1] - flightData.depCenter[1]);
+                            const dToArr = Math.hypot(p[0] - flightData.arrCenter[0], p[1] - flightData.arrCenter[1]);
+                            if (dToDep < dToArr && dToDep < 0.25) {
+                                depPoints.push([p[0], p[1]]);
+                            } else if (dToArr < dToDep && dToArr < 0.25) {
+                                arrPoints.push([p[0], p[1]]);
+                            }
+                        });
+
+                        if (depPoints.length > 1) {
+                            depRoutes = [{
+                                id: `${flightData.depCode}_TRINO_LIVE_DEP`,
+                                label: `Trino DB Taxi-out: ${flightData.callsign}`,
+                                shortName: "LIVE TAXI-OUT (<10K ft)",
+                                direction: "north",
+                                baseCount: 10,
+                                points: depPoints
+                            }];
+                        }
+                        if (arrPoints.length > 1) {
+                            arrRoutes = [{
+                                id: `${flightData.arrCode}_TRINO_LIVE_ARR`,
+                                label: `Trino DB Taxi-in: ${flightData.callsign}`,
+                                shortName: "LIVE TAXI-IN (<10K ft)",
+                                direction: "north",
+                                baseCount: 10,
+                                points: arrPoints
+                            }];
+                        }
+                        
+                        if (statusBadge) {
+                            statusBadge.innerText = "LIVE ACTIVE";
+                            statusBadge.className = "font-bold text-emerald-500 dark:text-emerald-400 whitespace-nowrap truncate";
+                        }
+                        if (statusDetails) {
+                            statusDetails.innerText = `SUCCESS: Fetched ${rawPoints.length} points below 10,000ft. Split: Dep(${depPoints.length}), Arr(${arrPoints.length}).`;
+                        }
                     }
                 }
 
-                // 2. 인증정보 미설정 또는 Trino 에러 발생 시 예외 없이 시뮬레이션 대체 가동
-                if (!routesData) {
-                    console.log(`OpenSky Trino DB fallbacked. Building simulated low-altitude surface trajectories.`);
-                    const baseRoutes = MOCK_SURFACE_ROUTES[flightData.arrCode]?.["arrival"] || [];
-                    routesData = baseRoutes.map(route => ({
-                        ...route
-                    }));
+                // 2. 인증정보 미설정 또는 Trino 에러/데이터 누락 시 예외 없이 고품질 시뮬레이션 대체 가동
+                if (!depRoutes || !arrRoutes) {
+                    console.log(`OpenSky Trino fallback active. Building mock routes.`);
+                    depRoutes = (MOCK_SURFACE_ROUTES[flightData.depCode] && MOCK_SURFACE_ROUTES[flightData.depCode]["departure"]) || [];
+                    arrRoutes = (MOCK_SURFACE_ROUTES[flightData.arrCode] && MOCK_SURFACE_ROUTES[flightData.arrCode]["arrival"]) || [];
 
                     if (statusBadge) {
                         statusBadge.innerText = "DEMO FALLBACK";
                         statusBadge.className = "font-bold text-amber-500 dark:text-amber-400 whitespace-nowrap truncate";
                     }
                     if (statusDetails) {
-                        statusDetails.innerText = "Trino credentials unconfigured or connection timed out. Loading local mock trajectories.";
+                        statusDetails.innerText = isTrinoConfigured
+                            ? "No active Trino telemetry returned for this callsign. Loading high-fidelity mock ground routes."
+                            : "Trino credentials unconfigured. Loading high-fidelity mock ground routes.";
                     }
                 }
 
-                MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: routesData };
-                localStorage.setItem(cachedKey, JSON.stringify(routesData));
+                MOCK_SURFACE_ROUTES[flightData.depCode] = { departure: depRoutes };
+                MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: arrRoutes };
+                
+                localStorage.setItem(cachedKey, JSON.stringify({ departure: depRoutes, arrival: arrRoutes }));
 
                 // Cloud Firestore 자동 비동기 저장 백업 (Rule 1 & Rule 3 준수)
                 if (db) {
@@ -746,7 +840,8 @@
                     if (user) {
                         const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('adsb_tracks').doc(flightNumber);
                         await docRef.set({
-                            routes: routesData,
+                            departure: depRoutes,
+                            arrival: arrRoutes,
                             timestamp: firebase.firestore.FieldValue.serverTimestamp()
                         });
                     }
@@ -754,29 +849,29 @@
 
             } catch (err) {
                 console.error("OpenSky Trino integration failed, falling back to local simulation memory:", err);
-                const baseRoutes = MOCK_SURFACE_ROUTES[flightData.arrCode]?.["arrival"] || [];
-                MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: baseRoutes };
+                const depRoutes = (MOCK_SURFACE_ROUTES[flightData.depCode] && MOCK_SURFACE_ROUTES[flightData.depCode]["departure"]) || [];
+                const arrRoutes = (MOCK_SURFACE_ROUTES[flightData.arrCode] && MOCK_SURFACE_ROUTES[flightData.arrCode]["arrival"]) || [];
+                MOCK_SURFACE_ROUTES[flightData.depCode] = { departure: depRoutes };
+                MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: arrRoutes };
 
                 if (statusBadge) {
                     statusBadge.innerText = "DEMO FALLBACK";
                     statusBadge.className = "font-bold text-amber-500 dark:text-amber-400 whitespace-nowrap truncate";
                 }
                 if (statusDetails) {
-                    // Check if the error is a CORS/Network "failed to fetch" or similar TypeError
                     if (err.name === 'TypeError' || (err.message && err.message.toLowerCase().includes('failed to fetch'))) {
                         statusDetails.innerText = "Network CORS restriction intercepted. Simulated mock telemetry successfully mirrored.";
                     } else {
-                        statusDetails.innerText = `Offline Fallback: ${err.message || "Connection refused"}.`;
+                        statusDetails.innerText = `Offline Fallback: ${err.message || "Connection refused"}. Loading local datasets.`;
                     }
                 }
             } finally {
-                // Restore search button states
                 document.getElementById('search-btn-text').classList.remove('hidden');
                 document.getElementById('search-loading-spinner').classList.add('hidden');
             }
         }
 
-        // Search Input Trigger
+        // Search Trigger
         async function handleFlightSearch() {
             const rawVal = document.getElementById('flight-input').value.trim().toUpperCase();
             
@@ -786,7 +881,7 @@
                 let number = numMatch[0];
                 if (number === "498") targetFlight = "KE498";
                 else if (number === "705") targetFlight = "KE705";
-                else targetFlight = "KE" + number; // Generate dynamic mock flight
+                else targetFlight = "KE" + number;
             } else if (rawVal.includes("KE") || rawVal.includes("KAL")) {
                 let numbers = rawVal.replace(/\D/g, '');
                 targetFlight = "KE" + numbers;
@@ -801,19 +896,23 @@
                 await fetchLiveADSBData(targetFlight);
                 
                 updateDashboardLayout();
-                recenterAirportFocus();
-                toggleSidebar(false); // Auto close sidebar drawer on mobile after searching
+                recenterMapFocus('both');
+                toggleSidebar(false);
             } else {
-                alert("Search parameter invalid. Supported profiles: KE498, KE705, or any other numeric flight number.");
+                alert("Search parameter invalid. Supported profiles: KE498, KE705.");
             }
         }
 
-        // Recenter view on active airport
-        function recenterAirportFocus() {
+        // Recenter maps (Split pane aware)
+        function recenterMapFocus(type) {
             const flight = FLIGHT_DATABASE[currentFlightId];
             if (!flight) return;
-            const activeCoords = flight.arrCenter;
-            mapObj.flyTo(activeCoords, 15, { duration: 1.2 });
+            if (type === 'dep' || type === 'both') {
+                depMapObj.flyTo(flight.depCenter, 14.5, { duration: 1.2 });
+            }
+            if (type === 'arr' || type === 'both') {
+                arrMapObj.flyTo(flight.arrCenter, 14.5, { duration: 1.2 });
+            }
         }
 
         // Toggle MAP TYPE Modes (Air Flight Mode vs Ground Taxi Mode)
@@ -895,45 +994,61 @@
             } else if (finalCount === 1) {
                 return { color: '#3b82f6', weight: 2.0, dashArray: null }; // Thin Blue (1 Time)
             } else {
-                return { color: '#475569', weight: 1.5, dashArray: '5, 8' }; // Dashed Gray (Other/Exception)
+                return { color: '#475569', weight: 1.5, dashArray: '5, 8' }; // Dashed Gray
             }
         }
 
         // Global Layout and UI synchronization
         function updateDashboardLayout() {
-            routeLayerGroup.clearLayers();
+            depRouteLayerGroup.clearLayers();
+            arrRouteLayerGroup.clearLayers();
 
             const flight = FLIGHT_DATABASE[currentFlightId];
             if (!flight) return;
-            const activeAirportIcao = flight.arrCode;
 
             // 1. Sidebar Panel Sync
             document.getElementById('info-flt').innerText = flight.flightNumber;
             document.getElementById('info-callsign').innerText = flight.callsign;
             document.getElementById('info-route-code').innerHTML = `${flight.depCode} &rarr; ${flight.arrCode}`;
-            document.getElementById('info-current-airport').innerText = `${activeAirportIcao} Incheon`;
+            document.getElementById('info-current-airport').innerText = `${flight.arrCode} Incheon`;
 
-            // 2. Collect active routes datasets
-            const rawRoutes = MOCK_SURFACE_ROUTES[activeAirportIcao]?.["arrival"] || [];
+            // Split Map Titles update
+            document.getElementById('dep-icao-title').innerText = flight.depCode;
+            document.getElementById('arr-icao-title').innerText = flight.arrCode;
 
-            // Apply direction filter logic
-            const filteredRoutes = rawRoutes.filter(route => {
+            // 2. Draw Departure Airport Routes (Left map)
+            const rawDepRoutes = (MOCK_SURFACE_ROUTES[flight.depCode] || { departure: [] })["departure"] || [];
+            const filteredDepRoutes = rawDepRoutes.filter(route => {
                 if (directionFilterVal === 'all') return true;
                 return route.direction === directionFilterVal;
             });
+            renderTaxiRoutes(depMapObj, depRouteLayerGroup, filteredDepRoutes);
 
-            // 3. Plot Polylines on Leaflet Map
-            filteredRoutes.forEach(route => {
+            // 3. Draw Arrival Airport Routes (Right map)
+            const rawArrRoutes = (MOCK_SURFACE_ROUTES[flight.arrCode] || { arrival: [] })["arrival"] || [];
+            const filteredArrRoutes = rawArrRoutes.filter(route => {
+                if (directionFilterVal === 'all') return true;
+                return route.direction === directionFilterVal;
+            });
+            renderTaxiRoutes(arrMapObj, arrRouteLayerGroup, filteredArrRoutes);
+
+            // 4. Draw Runway Threshold labels
+            addStaticMapLabels(flight.depCode, depRouteLayerGroup);
+            addStaticMapLabels(flight.arrCode, arrRouteLayerGroup);
+        }
+
+        // Generic Map Polyline Drawer
+        function renderTaxiRoutes(map, layerGroup, routes) {
+            routes.forEach(route => {
                 let calculatedCount = Math.round(route.baseCount * (flightCountScale / 10));
                 let style = getFrequencyLineStyle(route.baseCount);
 
-                // Heatmap Visual Style Override
                 let lineColor = style.color;
                 let lineWeight = style.weight;
                 let lineDash = style.dash ? '5, 8' : null;
 
                 if (visualType === 'heatmap') {
-                    lineColor = '#10b981'; // Green Glowing Heatmap Track
+                    lineColor = '#10b981';
                     lineWeight = style.weight * 1.5;
                 }
 
@@ -943,52 +1058,49 @@
                     dashArray: lineDash,
                     opacity: visualType === 'heatmap' ? 0.6 : 0.9,
                     lineJoin: 'round'
-                }).addTo(routeLayerGroup);
+                }).addTo(layerGroup);
 
                 polyline.bindTooltip(`
                     <div class="space-y-1 text-xs text-white">
                         <div class="font-extrabold border-b border-slate-700 pb-1">${route.shortName}</div>
-                        <div class="text-slate-400">Total Route: <strong class="text-white">${route.label}</strong></div>
+                        <div class="text-slate-400">Total Route: <strong class="text-white">${route.label || route.shortName}</strong></div>
                         <div class="text-slate-400">Direction: <strong class="text-blue-400 uppercase font-mono">${route.direction}</strong></div>
                         <div class="text-slate-400">Frequency: <strong class="text-emerald-400 font-mono">${calculatedCount} Times</strong></div>
                     </div>
                 `, { className: 'custom-tooltip', sticky: true });
             });
-
-            // 4. Draw Airport Beacon Pin
-            const targetCoords = flight.arrCenter;
-            const pulseIcon = L.divIcon({
-                className: 'relative flex items-center justify-center',
-                html: `
-                    <span class="absolute inline-flex h-9 w-9 rounded-full bg-blue-500/20 animate-ping"></span>
-                    <span class="relative inline-flex rounded-full h-5 w-5 bg-blue-600 border-2 border-slate-900 shadow"></span>
-                `,
-                iconSize: [20, 20]
-            });
-            L.marker(targetCoords, { icon: pulseIcon }).addTo(routeLayerGroup);
-
-            // Add clear labels for Runway points in Satellite context (Gate/Taxiway labels removed)
-            addStaticMapLabels(activeAirportIcao);
         }
 
-        // Add visual annotations for runways (All alphanumeric taxiway and gate texts removed)
-        function addStaticMapLabels(icao) {
+        // Add Runway labels
+        function addStaticMapLabels(icao, layerGroup) {
             if (icao === 'RKSI') {
-                // Runway 16L Indicator Label Badge (물리적 북서쪽 진입단 끝)
+                // Runway 16L
                 const rwy16L = L.divIcon({
-                    className: '',
                     html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">16L</div>`,
                     iconSize: [35, 20]
                 });
-                L.marker([37.4615, 126.4215], { icon: rwy16L }).addTo(routeLayerGroup);
+                L.marker([37.4615, 126.4215], { icon: rwy16L }).addTo(layerGroup);
 
-                // Runway 34R Indicator Label Badge (물리적 남동쪽 진입단 끝)
+                // Runway 34R
                 const rwy34R = L.divIcon({
-                    className: '',
                     html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">34R</div>`,
                     iconSize: [35, 20]
                 });
-                L.marker([37.4270, 126.4358], { icon: rwy34R }).addTo(routeLayerGroup);
+                L.marker([37.4270, 126.4358], { icon: rwy34R }).addTo(layerGroup);
+            } else if (icao === 'WSSS') {
+                // Runway 02C
+                const rwy02C = L.divIcon({
+                    html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">02C</div>`,
+                    iconSize: [35, 20]
+                });
+                L.marker([1.3480, 103.9870], { icon: rwy02C }).addTo(layerGroup);
+
+                // Runway 20C
+                const rwy20C = L.divIcon({
+                    html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">20C</div>`,
+                    iconSize: [35, 20]
+                });
+                L.marker([1.3790, 103.9925], { icon: rwy20C }).addTo(layerGroup);
             }
         }
 
@@ -1009,7 +1121,8 @@
 
             // Handle window resize event to redraw map correctly
             window.addEventListener('resize', () => {
-                if (mapObj) mapObj.invalidateSize();
+                if (depMapObj) depMapObj.invalidateSize();
+                if (arrMapObj) arrMapObj.invalidateSize();
             });
         };
     </script>
