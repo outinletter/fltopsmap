@@ -649,6 +649,10 @@ async function trinoQuery(sql) {
     log(`  폴링: ${res.stats?.state || '?'} / rows=${rows.length}`, 'inf');
 }
 
+    log(`✓ 완료: ${rows.length}행`, 'ok');
+    return rows;
+}
+
 async function fetchSurface(callsign, hoursBack=24) {
     const hours  = getHours(hoursBack);
     const padded = callsign.toUpperCase().padEnd(8,' ');
