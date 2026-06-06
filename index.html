@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLT OPS MAP - Flight Operations Analysis Tool</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS & JS CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Chart.js CDN for Gate Donut Chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+KR:wght@300;400;500;700;950&display=swap');
+        
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background-color: #030712;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Dark premium scrollbar styling matching image_0 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #070a13;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6;
+        }
+
+        /* Custom Leaflet overrides */
+        .leaflet-container {
+            background: #070a13 !important;
+        }
+        
+        /* Interactive dynamic tooltips */
+        .custom-tooltip {
+            background: rgba(11, 19, 43, 0.95) !important;
+            border: 1px solid #1e293b !important;
+            color: #ffffff !important;
+            font-weight: 700;
+            font-size: 11px !important;
+            border-radius: 4px;
+            padding: 6px 10px !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Permanent map route labeling - Dark Mode Optimized */
+        .route-label-badge {
+            background: rgba(15, 23, 42, 0.92);
+            border: 1.5px solid #334155;
+            color: #f1f5f9;
+            font-size: 10px;
+            font-weight: 850;
+            padding: 3px 6px;
+            border-radius: 4px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+            white-space: nowrap;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="text-slate-200 h-screen w-screen flex flex-col overflow-hidden select-none bg-slate-950">
+
+    <!-- TOP CONTROL NAVIGATION PANEL (Aviation Dark Header) -->
+    <header class="bg-[#070a13] border-b border-[#1e293b] h-14 min-h-[56px] px-6 flex items-center justify-between z-30 shadow-xl">
+        <div class="flex items-center space-x-6">
+            <div class="flex items-center space-x-3">
+                <button class="text-slate-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <div class="flex flex-col">
+                    <span class="text-base font-black tracking-wider text-white flex items-center">
+                        FLT OPS MAP
+                    </span>
+                    <span id="top-submode-title" class="text-[9px] text-slate-400 font-medium tracking-tight mt-[-2px]">
+                        Taxi Route Frequency Map (Surface)
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Flight Number Normalizing Input -->
+            <div class="flex items-center space-x-2">
+                <span class="text-xs text-slate-400 font-semibold">편명 입력</span>
+                <div class="flex h-8">
+                    <input id="flight-input" type="text" value="KE498" placeholder="예: KE498, 705"
+                           class="bg-[#030712] border border-[#334155] rounded-l px-3 text-xs w-48 focus:outline-none focus:border-blue-500 font-black tracking-widest text-white uppercase font-mono">
+                    <button onclick="handleFlightSearch()" class="bg-[#2563eb] hover:bg-blue-600 px-5 rounded-r text-xs font-bold text-white transition-all uppercase tracking-wider">
+                        검색
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right System Status Indicators -->
+        <div class="flex items-center space-x-6 text-xs text-slate-400 font-medium">
+            <div>데이터 기준: <span id="top-data-count-label" class="text-slate-200 font-bold ml-1">최근 10편</span></div>
+            <div>고도 범위: <span id="top-altitude-label" class="text-slate-200 font-bold ml-1">지상 (Surface)</span></div>
+            <div class="flex items-center space-x-3 text-slate-400">
+                <button class="hover:text-white">
+                    <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"></path>
+                    </svg>
+                </button>
+                <button class="hover:text-white">
+                    <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN OPERATIONS WORKSPACE -->
+    <div class="flex-1 flex overflow-hidden relative">
+        
+        <!-- SIDEBAR FLIGHT & AIRPORT CONFIGURATION BOARD (Aviation Control Side) -->
+        <aside class="w-[290px] bg-[#0b0f19] border-r border-[#1e293b] flex flex-col overflow-y-auto z-20 shrink-0 shadow-sm">
+            
+            <!-- SECTION 1: FLIGHT INFORMATION PANEL -->
+            <div class="p-4 border-b border-[#1e293b]">
+                <h3 class="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-3 flex items-center justify-between">
+                    <span>Flight Info</span>
+                </h3>
+                <div class="space-y-2 text-xs bg-[#070a13] p-3 rounded border border-slate-800">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400 font-semibold">편명</span>
+                        <span class="font-extrabold text-white tracking-wider">
+                            <span id="info-flt">KE498</span> <span class="text-blue-400 font-mono text-[11px] ml-1">/ <span id="info-callsign">KAL498</span></span>
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400 font-semibold">노선</span>
+                        <span id="info-route-code" class="font-bold text-white tracking-wide">WSSS &rarr; RKSI</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400 font-semibold">운항</span>
+                        <span id="info-op-type" class="font-medium text-slate-300">도착 (Arrival)</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400 font-semibold">데이터</span>
+                        <span class="font-medium text-slate-300">최근 10편 (지상)</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400 font-semibold">공항</span>
+                        <span id="info-current-airport" class="font-bold text-slate-100 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 font-mono text-[10px]">RKSI 인천국제공항</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: MAP TYPE SELECTION -->
+            <div class="p-4 border-b border-[#1e293b] space-y-2.5">
+                <h3 class="text-[11px] font-bold text-slate-400 tracking-wider uppercase">MAP TYPE</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="map-type-air" onclick="setMapMode('air')" class="bg-slate-900 border border-[#1e293b] text-slate-400 rounded text-xs py-2.5 flex flex-col items-center justify-center font-bold hover:text-slate-200 transition-all">
+                        <svg class="w-4 h-4 mb-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                        </svg>
+                        공중 경로 (비행)
+                    </button>
+                    <button id="map-type-taxi" onclick="setMapMode('taxi')" class="bg-blue-600 border border-blue-500 text-white rounded text-xs py-2.5 flex flex-col items-center justify-center font-bold transition-all shadow-md shadow-blue-500/10">
+                        <svg class="w-4 h-4 mb-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                        </svg>
+                        지상 경로 (이동)
+                    </button>
+                </div>
+            </div>
+
+            <!-- SECTION 3: TAXI ROUTE PROGRESS MATRIX -->
+            <div id="taxi-flow-segment" class="p-4 border-b border-[#1e293b] space-y-2">
+                <h3 class="text-[11px] font-bold text-slate-400 tracking-wider uppercase">지상 경로 구간</h3>
+                <div class="flex items-center justify-between text-[10px] font-bold text-center">
+                    <span class="bg-[#070a13] border border-slate-800 rounded px-1.5 py-1 flex-1 text-white">RWY<br/><span class="text-[8px] text-slate-500 font-normal">착륙</span></span>
+                    <span class="text-slate-600 px-1">&rarr;</span>
+                    <span class="bg-[#070a13] border border-slate-800 rounded px-1.5 py-1 flex-1 text-white">EXIT<br/><span class="text-[8px] text-slate-500 font-normal">유도로</span></span>
+                    <span class="text-slate-600 px-1">&rarr;</span>
+                    <span class="bg-[#070a13] border border-slate-800 rounded px-1.5 py-1 flex-1 text-white">APRON<br/><span class="text-[8px] text-slate-500 font-normal">계류장</span></span>
+                    <span class="text-slate-600 px-1">&rarr;</span>
+                    <span class="bg-[#070a13] border border-slate-800 rounded px-1.5 py-1 flex-1 text-white">GATE<br/><span class="text-[8px] text-slate-500 font-normal">게이트</span></span>
+                </div>
+            </div>
+
+            <!-- SECTION 4: FILTERS PANEL -->
+            <div class="p-4 border-b border-[#1e293b] space-y-4">
+                <div>
+                    <h3 class="text-[11px] font-bold text-slate-400 tracking-wider uppercase mb-2">FILTER</h3>
+                    <label class="text-[11px] text-slate-500 block mb-1">운항 방향</label>
+                    <div class="grid grid-cols-5 gap-1 bg-[#070a13] p-1 rounded border border-slate-800 text-center font-bold text-[10px]">
+                        <button id="dir-all" onclick="setDirectionFilter('all')" class="py-1 rounded bg-blue-600 text-white transition-all shadow-sm">전체</button>
+                        <button id="dir-north" onclick="setDirectionFilter('north')" class="py-1 rounded text-slate-400 hover:text-slate-200 transition-all">북항</button>
+                        <button id="dir-south" onclick="setDirectionFilter('south')" class="py-1 rounded text-slate-400 hover:text-slate-200 transition-all">남항</button>
+                        <button id="dir-east" onclick="setDirectionFilter('east')" class="py-1 rounded text-slate-400 hover:text-slate-200 transition-all">동항</button>
+                        <button id="dir-west" onclick="setDirectionFilter('west')" class="py-1 rounded text-slate-400 hover:text-slate-200 transition-all">서항</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[11px] text-slate-500 block mb-1">표시 유형</label>
+                    <div class="grid grid-cols-2 gap-1.5 bg-[#070a13] p-1 rounded border border-slate-800 text-center text-[10.5px]">
+                        <button id="type-heatmap" onclick="setVisualType('heatmap')" class="py-1 rounded text-slate-400 hover:text-slate-200 font-medium">히트맵</button>
+                        <button id="type-frequency" onclick="setVisualType('frequency')" class="py-1 rounded bg-slate-800 text-white font-bold">빈도맵 (대표경로)</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                        <label class="text-[11px] text-slate-500 block mb-1">기간/편수</label>
+                        <select id="period-selector" class="w-full bg-[#070a13] border border-slate-800 rounded px-2 py-1.5 text-slate-300 focus:outline-none">
+                            <option value="recent">최근</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[11px] text-slate-500 block mb-1">&nbsp;</label>
+                        <select id="flight-count-selector" onchange="updateAccumulatedRange()" class="w-full bg-[#070a13] border border-slate-800 rounded px-2 py-1.5 text-slate-300 focus:outline-none font-mono">
+                            <option value="10">10 편</option>
+                            <option value="30">30 편</option>
+                            <option value="100">100 편</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SIDEBAR FOOTER DISPATCH INFO -->
+            <div class="p-4 mt-auto bg-[#070a13]/60 border-t border-[#1e293b]">
+                <span class="text-[10px] font-bold text-slate-400 uppercase block mb-1">안내</span>
+                <p id="manual-description" class="text-[10.5px] text-slate-500 leading-relaxed">
+                    지상 이동 경로의 빈도를 대표 경로로 단순화하여 표시합니다. 선의 색상과 굵기는 사용 빈도를 의미합니다.
+                </p>
+            </div>
+        </aside>
+
+        <!-- CENTER MAP PLATFORM CONTAINER -->
+        <main class="flex-1 flex flex-col min-h-0 relative">
+            
+            <!-- TOP VIEW MODE TABS TRAY (Aviation Split Navigation) -->
+            <div class="absolute top-3 left-4 z-[400] flex bg-[#0b0f19]/90 border border-[#1e293b] rounded p-0.5 shadow-2xl text-xs font-semibold backdrop-blur-sm">
+                <button id="tab-summary" onclick="setNavTab('summary')" class="px-4 py-1.5 rounded text-slate-400 hover:text-slate-200 transition-all">개요</button>
+                <button id="tab-all-airport" onclick="setNavTab('all-airport')" class="px-4 py-1.5 rounded text-slate-400 hover:text-slate-200 transition-all">공항 전체</button>
+                <button id="tab-ground-move" onclick="setNavTab('ground-move')" class="px-4 py-1.5 rounded bg-slate-800 text-white transition-all">지상 이동 (착륙 &rarr; 게이트)</button>
+                <button id="tab-gate" onclick="setNavTab('gate')" class="px-4 py-1.5 rounded text-slate-400 hover:text-slate-200 transition-all">게이트별 분석</button>
+            </div>
+
+            <!-- LEAFLET CANVAS MAP -->
+            <div id="map" class="w-full flex-1 z-0 relative"></div>
+
+            <!-- FLOATING MAP ALERT OVERLAY PANEL (TOP-LEFT) -->
+            <div id="map-alert-widget" class="absolute top-16 left-4 z-[400] bg-[#0b0f19]/95 border border-[#1e293b] p-4 rounded shadow-2xl w-[260px] text-xs backdrop-blur-sm">
+                <div class="flex items-center space-x-2 mb-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-[#ef4444] animate-pulse"></span>
+                    <h4 id="alert-title" class="font-extrabold text-white text-[12px] uppercase tracking-wide">인천국제공항 RKSI</h4>
+                </div>
+                <p id="alert-subtitle" class="text-[11px] text-slate-400 leading-relaxed mb-3">착륙 후 게이트까지 지상 이동 빈도맵<br>최근 10편 (KE498)</p>
+                
+                <!-- Inside Legend details matching image perfectly -->
+                <div class="border-t border-[#1e293b] pt-3 space-y-2">
+                    <h5 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">범례 (사용 빈도)</h5>
+                    <div class="space-y-2 text-[11px]">
+                        <div class="flex items-center justify-between">
+                            <span class="flex items-center space-x-2">
+                                <span class="w-4 h-1.5 rounded bg-[#ef4444] inline-block"></span>
+                                <span class="text-slate-300">7 ~ 10회</span>
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="flex items-center space-x-2">
+                                <span class="w-4 h-1.5 rounded bg-[#f97316] inline-block"></span>
+                                <span class="text-slate-300">4 ~ 6회</span>
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="flex items-center space-x-2">
+                                <span class="w-4 h-1.5 rounded bg-[#84cc16] inline-block"></span>
+                                <span class="text-slate-300">2 ~ 3회</span>
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="flex items-center space-x-2">
+                                <span class="w-4 h-1.5 rounded bg-[#3b82f6] inline-block"></span>
+                                <span class="text-slate-300">1회</span>
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="flex items-center space-x-2">
+                                <span class="w-4 h-0.5 border-t border-dashed border-slate-500 inline-block"></span>
+                                <span class="text-slate-500">기타 / 예외 경로</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COMPASS & ZOOM FLOATING BUTTONS (Top Right Layout) -->
+            <div class="absolute top-3 right-4 z-[400] flex flex-col space-y-2">
+                <!-- Compass dial indicator -->
+                <div class="bg-[#0b0f19] border border-[#1e293b] rounded-full w-9 h-9 flex items-center justify-center text-slate-400 shadow-xl relative">
+                    <span class="text-[9px] font-bold text-red-500 absolute top-0.5">N</span>
+                    <svg class="w-4 h-4 text-slate-400 mt-1" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                    </svg>
+                </div>
+                
+                <!-- Zoom button controls -->
+                <div class="bg-[#0b0f19] border border-[#1e293b] rounded flex flex-col items-center shadow-xl font-bold">
+                    <button onclick="mapObj.zoomIn()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white border-b border-[#1e293b] text-base">+</button>
+                    <button onclick="mapObj.zoomOut()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white text-base">&minus;</button>
+                </div>
+
+                <!-- Recenter positioning button -->
+                <button onclick="recenterAirportFocus()" class="bg-[#0b0f19] border border-[#1e293b] hover:bg-slate-800 rounded w-8 h-8 flex items-center justify-center text-slate-400 shadow-xl hover:text-emerald-400 transition-all" title="Recenter Focus">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                </button>
+                
+                <!-- Layer toggle button -->
+                <button onclick="toggleSatelliteLayer()" class="bg-[#0b0f19] border border-[#1e293b] hover:bg-slate-800 rounded w-8 h-8 flex items-center justify-center text-slate-400 shadow-xl hover:text-blue-400 transition-all" title="Toggle Satellite">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- LOWER CARD FOOTER TRAY PANEL (Aviation Analytics & Split View) -->
+    <section class="bg-[#0b0f19] border-t border-[#1e293b] h-[260px] min-h-[260px] z-30 flex flex-col overflow-hidden shadow-2xl">
+        <div id="footer-inner-dashboard" class="flex-1 grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#1e293b] h-full">
+            
+            <!-- COLUMN 1: Representative Ground Routes (Landing -> Gate) -->
+            <div class="p-4 flex flex-col min-h-0 bg-[#070a13]/40">
+                <h3 class="text-xs font-bold text-slate-400 mb-2.5 flex items-center">
+                    <span class="w-1.5 h-3.5 bg-blue-500 rounded-sm mr-2 inline-block"></span>
+                    대표 지상 경로 (착륙 &rarr; 게이트)
+                </h3>
+                <div class="flex-1 overflow-y-auto pr-1">
+                    <table class="w-full text-left text-[11px] text-slate-300 font-sans">
+                        <thead>
+                            <tr class="text-slate-500 border-b border-[#1e293b]/60 pb-1.5">
+                                <th class="pb-2 font-bold w-12 text-center">순위</th>
+                                <th class="pb-2 font-bold">경로</th>
+                                <th class="pb-2 font-bold text-center w-36">사용 횟수 (10편 중)</th>
+                                <th class="pb-2 font-bold text-right w-16">비율</th>
+                            </tr>
+                        </thead>
+                        <tbody id="taxiway-table-body" class="divide-y divide-[#1e293b]/40 font-mono">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-[10px] text-slate-500 mt-2 font-medium">
+                    * 게이트 번호는 도착 기준 (최근 10편)
+                </div>
+            </div>
+
+            <!-- COLUMN 2: Arrival Distribution by Gate (10 Flights) -->
+            <div class="p-4 flex flex-col min-h-0 bg-[#070a13]/40">
+                <h3 class="text-xs font-bold text-slate-400 mb-2 flex items-center">
+                    <span class="w-1.5 h-3.5 bg-blue-500 rounded-sm mr-2 inline-block"></span>
+                    게이트별 도착 분포 (10편)
+                </h3>
+                <div class="flex-1 grid grid-cols-2 items-center gap-2 min-h-0">
+                    <div class="h-full max-h-[145px] flex items-center justify-center relative">
+                        <canvas id="gateDistributionChart"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
+                            <span class="text-[9px] text-slate-500 font-medium">총</span>
+                            <span id="donut-total-flights" class="text-xs font-black text-white font-mono">10편</span>
+                        </div>
+                    </div>
+                    <div id="gate-legends-container" class="text-[11px] space-y-1.5 pl-4 border-l border-[#1e293b]/50">
+                        <!-- Legend dots populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMN 3: Last 10 Ground Movement Previews (Landing -> Gate) -->
+            <div class="p-4 flex flex-col min-h-0 bg-[#070a13]/40">
+                <h3 class="text-xs font-bold text-slate-400 mb-2 flex items-center">
+                    <span class="w-1.5 h-3.5 bg-blue-500 rounded-sm mr-2 inline-block"></span>
+                    최근 10편 지상 이동 경로 미리보기
+                </h3>
+                <div class="text-[10px] text-slate-500 mb-2">(착륙 &rarr; 게이트 도착)</div>
+                <div id="mini-scroller-tray" class="flex-1 overflow-x-auto flex items-center gap-3 py-1 pr-4">
+                    <!-- Dynamic Sparkline Previews loaded here -->
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- FOOTER BAR -->
+        <div class="h-6 min-h-[24px] bg-[#05070c] border-t border-[#1e293b] px-5 flex items-center justify-between text-[10px] text-slate-500 shrink-0">
+            <span>※ 지상 경로는 ADS-B 지상 속도 및 위치 데이터를 기반으로 생성되었습니다.</span>
+            <span class="font-mono">SYSTEM ACTIVE // 2026-06-06 DEPLOYED</span>
+        </div>
+    </section>
+
+    <!-- CORE JAVASCRIPT SYSTEM ENGINE -->
+    <script>
+        // MOCK EMBEDDED DATABASES: Flight Configurations
+        const FLIGHT_DATABASE = {
+            "KE498": {
+                flightNumber: "KE498",
+                callsign: "KAL498",
+                depCode: "WSSS",
+                depName: "Singapore Changi Airport",
+                arrCode: "RKSI",
+                arrName: "Seoul Incheon Int'l Airport",
+                airportNameKo: "인천국제공항 RKSI",
+                depCenter: [1.3644, 103.9915],
+                arrCenter: [37.4550, 126.4380]
+            },
+            "KE705": {
+                flightNumber: "KE705",
+                callsign: "KAL705",
+                depCode: "RKSI",
+                depName: "Seoul Incheon Int'l Airport",
+                arrCode: "RJTT",
+                arrName: "Tokyo Haneda Airport",
+                airportNameKo: "도쿄 Haneda 공항 (RJTT)",
+                depCenter: [37.4550, 126.4380],
+                arrCenter: [35.5494, 139.7798]
+            }
+        };
+
+        // GEOSPATIAL TAXIWAY ROUTES DATABASE (Refined for exact representation)
+        const MOCK_SURFACE_ROUTES = {
+            "RKSI": {
+                "arrival": [
+                    {
+                        id: "RKSI_ARR_01",
+                        label: "16L &rarr; E1 &rarr; E7 &rarr; 111",
+                        shortName: "16L &rarr; E1 &rarr; E7 &rarr; 111",
+                        direction: "north",
+                        baseCount: 6,
+                        ratio: "60%",
+                        gate: "111번 게이트",
+                        color: "#ef4444",
+                        points: [
+                            [37.4525, 126.425], [37.4527, 126.438], [37.4595, 126.438], [37.4597, 126.444], [37.4655, 126.444], [37.4658, 126.451]
+                        ],
+                        labelCoord: [37.4595, 126.438]
+                    },
+                    {
+                        id: "RKSI_ARR_02",
+                        label: "16L &rarr; E1 &rarr; E7 &rarr; 37",
+                        shortName: "16L &rarr; E1 &rarr; E7 &rarr; 37",
+                        direction: "south",
+                        baseCount: 3,
+                        ratio: "30%",
+                        gate: "37번 게이트",
+                        color: "#f97316",
+                        points: [
+                            [37.4525, 126.425], [37.4527, 126.438], [37.4552, 126.438], [37.4555, 126.449], [37.4528, 126.450]
+                        ],
+                        labelCoord: [37.4552, 126.438]
+                    },
+                    {
+                        id: "RKSI_ARR_03",
+                        label: "16L &rarr; W7 &rarr; 38",
+                        shortName: "16L &rarr; W7 &rarr; 38",
+                        direction: "west",
+                        baseCount: 1,
+                        ratio: "10%",
+                        gate: "38번 게이트",
+                        color: "#84cc16",
+                        points: [
+                            [37.4525, 126.425], [37.4495, 126.425], [37.4492, 126.439], [37.4515, 126.443], [37.4512, 126.450]
+                        ],
+                        labelCoord: [37.4492, 126.439]
+                    },
+                    {
+                        id: "RKSI_ARR_04",
+                        label: "16L &rarr; W7 &rarr; 39",
+                        shortName: "16L &rarr; W7 &rarr; 39",
+                        direction: "east",
+                        baseCount: 0,
+                        ratio: "0%",
+                        gate: "39번 게이트",
+                        color: "#64748b",
+                        dash: true,
+                        points: [
+                            [37.4525, 126.425], [37.4480, 126.425], [37.4478, 126.441], [37.4495, 126.448]
+                        ],
+                        labelCoord: [37.4478, 126.441]
+                    }
+                ],
+                "departure": [
+                    {
+                        id: "RKSI_DEP_01",
+                        label: "Gate 111 &rarr; E7 &rarr; 16L",
+                        shortName: "111 &rarr; E7 &rarr; 16L",
+                        direction: "north",
+                        baseCount: 7,
+                        ratio: "70%",
+                        gate: "RWY 16L",
+                        color: "#ef4444",
+                        points: [
+                            [37.4658, 126.451], [37.4655, 126.444], [37.4597, 126.444], [37.4595, 126.438], [37.4527, 126.438], [37.4525, 126.425]
+                        ],
+                        labelCoord: [37.4597, 126.444]
+                    },
+                    {
+                        id: "RKSI_DEP_02",
+                        label: "Gate 37 &rarr; E7 &rarr; 16L",
+                        shortName: "37 &rarr; E7 &rarr; 16L",
+                        direction: "south",
+                        baseCount: 3,
+                        ratio: "30%",
+                        gate: "RWY 16L",
+                        color: "#f97316",
+                        points: [
+                            [37.4528, 126.450], [37.4555, 126.449], [37.4552, 126.438], [37.4527, 126.438], [37.4525, 126.425]
+                        ],
+                        labelCoord: [37.4555, 126.449]
+                    }
+                ]
+            },
+            "WSSS": {
+                "arrival": [
+                    {
+                        id: "WSSS_ARR_01",
+                        label: "RWY 02C &rarr; Exit D3 &rarr; Gate C16",
+                        shortName: "02C &rarr; Exit D3 &rarr; Gate C16",
+                        direction: "south",
+                        baseCount: 8,
+                        ratio: "80%",
+                        gate: "Gate C16",
+                        color: "#ef4444",
+                        points: [
+                            [1.3505, 103.9880], [1.3530, 103.9881], [1.3585, 103.9892], [1.3615, 103.9890], [1.3622, 103.9875]
+                        ],
+                        labelCoord: [1.3585, 103.9892]
+                    },
+                    {
+                        id: "WSSS_ARR_02",
+                        label: "RWY 20C &rarr; Exit C2 &rarr; Gate C16",
+                        shortName: "20C &rarr; Exit C2 &rarr; Gate C16",
+                        direction: "north",
+                        baseCount: 2,
+                        ratio: "20%",
+                        gate: "Gate C16",
+                        color: "#84cc16",
+                        points: [
+                            [1.3780, 103.9920], [1.3720, 103.9912], [1.3660, 103.9902], [1.3622, 103.9875]
+                        ],
+                        labelCoord: [1.3720, 103.9912]
+                    }
+                ],
+                "departure": [
+                    {
+                        id: "WSSS_DEP_01",
+                        label: "Gate C16 &rarr; Taxiway C1 &rarr; RWY 02C",
+                        shortName: "C16 &rarr; C1 &rarr; RWY 02C",
+                        direction: "north",
+                        baseCount: 6,
+                        ratio: "60%",
+                        gate: "RWY 02C",
+                        color: "#ef4444",
+                        points: [
+                            [1.3622, 103.9875], [1.3615, 103.9890], [1.3580, 103.9895], [1.3540, 103.9882], [1.3505, 103.9880]
+                        ],
+                        labelCoord: [1.3580, 103.9895]
+                    },
+                    {
+                        id: "WSSS_DEP_02",
+                        label: "Gate C16 &rarr; Taxiway B4 &rarr; RWY 02L",
+                        shortName: "C16 &rarr; B4 &rarr; RWY 02L",
+                        direction: "west",
+                        baseCount: 4,
+                        ratio: "40%",
+                        gate: "RWY 02L",
+                        color: "#f97316",
+                        points: [
+                            [1.3622, 103.9875], [1.3610, 103.9825], [1.3565, 103.9820], [1.3520, 103.9810]
+                        ],
+                        labelCoord: [1.3565, 103.9820]
+                    }
+                ]
+            }
+        };
+
+        // System Runtime States
+        let currentFlightId = "KE498";
+        let mapMode = "taxi"; // air (flight) vs taxi (ground)
+        let directionFilterVal = "all";
+        let visualType = "frequency"; // heatmap or frequency
+        let flightCountScale = 10; // Multiplier: 10, 30, 100
+        let currentTab = "ground-move"; // summary, all-airport, ground-move, gate
+        let isSatellite = true;
+
+        let mapObj;
+        let routeLayerGroup;
+        let baseLayer, satelliteLayer;
+        let gateChartInstance = null;
+
+        // Start App 
+        function initApp() {
+            const flight = FLIGHT_DATABASE[currentFlightId];
+
+            // Setup Leaflet map instance
+            mapObj = L.map('map', {
+                zoomControl: false,
+                attributionControl: false,
+                center: flight.arrCenter,
+                zoom: 15,
+                maxZoom: 18,
+                minZoom: 11
+            });
+
+            // Map Layer Configurations (Esri Satellite set as active default)
+            satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri'
+            }).addTo(mapObj);
+            
+            baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+
+            routeLayerGroup = L.layerGroup().addTo(mapObj);
+
+            // Populate dashboard
+            updateDashboardLayout();
+        }
+
+        // Search Input Normalizer
+        function handleFlightSearch() {
+            const rawVal = document.getElementById('flight-input').value.trim().toUpperCase();
+            
+            let targetFlight = "";
+            let numMatch = rawVal.match(/\d+/);
+            if (numMatch) {
+                let number = numMatch[0];
+                if (number === "498") targetFlight = "KE498";
+                else if (number === "705") targetFlight = "KE705";
+            } else if (rawVal.includes("KE") || rawVal.includes("KAL")) {
+                if (rawVal.includes("498")) targetFlight = "KE498";
+                if (rawVal.includes("705")) targetFlight = "KE705";
+            }
+
+            if (FLIGHT_DATABASE[targetFlight]) {
+                currentFlightId = targetFlight;
+                directionFilterVal = "all";
+                resetDirectionFilterButtons();
+                updateDashboardLayout();
+                recenterAirportFocus();
+            } else {
+                alert("편명을 찾을 수 없습니다. (KE498 또는 KE705 입력)");
+            }
+        }
+
+        // Recenter view on active airport
+        function recenterAirportFocus() {
+            const flight = FLIGHT_DATABASE[currentFlightId];
+            const activeCoords = (currentTab === 'summary' || currentTab === 'all-airport') 
+                ? flight.arrCenter 
+                : (flight.arrCode === 'RKSI' ? flight.arrCenter : flight.depCenter);
+            
+            mapObj.flyTo(activeCoords, 15, { duration: 1.2 });
+        }
+
+        // Toggle Layer (Vector vs Satellite)
+        function toggleSatelliteLayer() {
+            if (!isSatellite) {
+                mapObj.removeLayer(baseLayer);
+                satelliteLayer.addTo(mapObj);
+                isSatellite = true;
+            } else {
+                mapObj.removeLayer(satelliteLayer);
+                baseLayer.addTo(mapObj);
+                isSatellite = false;
+            }
+        }
+
+        // Toggle MAP TYPE Modes (Air Flight Mode vs Ground Taxi Mode)
+        function setMapMode(mode) {
+            mapMode = mode;
+            const airBtn = document.getElementById('map-type-air');
+            const taxiBtn = document.getElementById('map-type-taxi');
+            const topTitle = document.getElementById('top-submode-title');
+            const taxiFlowSegment = document.getElementById('taxi-flow-segment');
+            const topAltLabel = document.getElementById('top-altitude-label');
+
+            if (mode === 'air') {
+                airBtn.className = "bg-blue-600 border border-blue-500 text-white rounded text-xs py-2.5 flex flex-col items-center justify-center font-bold transition-all shadow-md shadow-blue-500/10";
+                taxiBtn.className = "bg-slate-900 border border-[#1e293b] text-slate-400 rounded text-xs py-2.5 flex flex-col items-center justify-center font-bold hover:text-slate-200 transition-all";
+                topTitle.innerText = "Air Route Frequency Map (Terminal airspace)";
+                taxiFlowSegment.classList.add('hidden');
+                topAltLabel.innerText = "10,000ft 이하";
+                document.getElementById('alert-subtitle').innerHTML = "공역 진입 경로 빈도 가시화<br>최근 10편 (KE498)";
+            } else {
+                taxiBtn.className = "bg-blue-600 border border-blue-500 text-white rounded text-xs py-2.5 flex flex-col items-center justify-center font-bold transition-all shadow-md shadow-blue-500/10";
+                airBtn.className = "bg-slate-900 border border-[#1e293b] text-slate-400 rounded text-xs py-2.5 flex flex-col items-center justify-center font-bold hover:text-slate-200 transition-all";
+                topTitle.innerText = "Taxi Route Frequency Map (Surface)";
+                taxiFlowSegment.classList.remove('hidden');
+                topAltLabel.innerText = "지상 (Surface)";
+                document.getElementById('alert-subtitle').innerHTML = "착륙 후 게이트까지 지상 이동 빈도맵<br>최근 10편 (KE498)";
+            }
+            updateDashboardLayout();
+        }
+
+        // Direction Selector Control
+        function setDirectionFilter(dir) {
+            directionFilterVal = dir;
+            resetDirectionFilterButtons();
+            updateDashboardLayout();
+        }
+
+        function resetDirectionFilterButtons() {
+            const dirs = ['all', 'north', 'south', 'east', 'west'];
+            dirs.forEach(d => {
+                const btn = document.getElementById(`dir-${d}`);
+                if (d === directionFilterVal) {
+                    btn.className = "py-1 rounded bg-blue-600 text-white transition-all shadow-sm";
+                } else {
+                    btn.className = "py-1 rounded text-slate-400 hover:text-slate-200 transition-all";
+                }
+            });
+        }
+
+        // Visual Display Type Toggles (Frequency map vs Heatmap)
+        function setVisualType(type) {
+            visualType = type;
+            const fBtn = document.getElementById('type-frequency');
+            const hBtn = document.getElementById('type-heatmap');
+
+            if (type === 'frequency') {
+                fBtn.className = "py-1 rounded bg-slate-800 text-white font-bold";
+                hBtn.className = "py-1 rounded text-slate-400 hover:text-slate-200 font-medium";
+            } else {
+                hBtn.className = "py-1 rounded bg-slate-800 text-white font-bold";
+                fBtn.className = "py-1 rounded text-slate-400 hover:text-slate-200 font-medium";
+            }
+            updateDashboardLayout();
+        }
+
+        // Update Accumulated Range Selectors
+        function updateAccumulatedRange() {
+            const rangeVal = parseInt(document.getElementById('flight-count-selector').value);
+            flightCountScale = rangeVal;
+            document.getElementById('top-data-count-label').innerText = `최근 ${rangeVal}편`;
+            document.getElementById('donut-total-flights').innerText = `총 ${rangeVal}편`;
+            updateDashboardLayout();
+        }
+
+        // Split Tab Control Handlers
+        function setNavTab(tabKey) {
+            currentTab = tabKey;
+            ['summary', 'all-airport', 'ground-move', 'gate'].forEach(k => {
+                const tab = document.getElementById(`tab-${k}`);
+                if (k === tabKey) {
+                    tab.className = "px-4 py-1.5 rounded bg-slate-800 text-white transition-all";
+                } else {
+                    tab.className = "px-4 py-1.5 rounded text-slate-400 hover:text-slate-200 transition-all";
+                }
+            });
+            updateDashboardLayout();
+            recenterAirportFocus();
+        }
+
+        // Get Dynamic Scaling Lines Style
+        function getFrequencyLineStyle(count) {
+            let scaleFactor = flightCountScale / 10;
+            let finalCount = count * scaleFactor;
+
+            if (finalCount >= 6) {
+                return { color: '#ef4444', weight: 6.5, dashArray: null }; // Thick Red
+            } else if (finalCount >= 3) {
+                return { color: '#f97316', weight: 4.5, dashArray: null }; // Medium Orange
+            } else if (finalCount >= 2) {
+                return { color: '#84cc16', weight: 3.5, dashArray: null }; // Lime Green
+            } else if (finalCount === 1) {
+                return { color: '#3b82f6', weight: 2.0, dashArray: null }; // Thin Blue
+            } else {
+                return { color: '#475569', weight: 1.5, dashArray: '5, 8' }; // Dashed Gray
+            }
+        }
+
+        // Global Layout and UI synchronization
+        function updateDashboardLayout() {
+            routeLayerGroup.clearLayers();
+
+            const flight = FLIGHT_DATABASE[currentFlightId];
+            const activeAirportIcao = flight.arrCode;
+
+            // 1. Sidebar Panel Sync
+            document.getElementById('info-flt').innerText = flight.flightNumber;
+            document.getElementById('info-callsign').innerText = flight.callsign;
+            document.getElementById('info-route-code').innerHTML = `${flight.depCode} &rarr; ${flight.arrCode}`;
+            document.getElementById('info-current-airport').innerText = `${activeAirportIcao} Incheon`;
+
+            // 2. Map Alarm Box Metadata
+            document.getElementById('alert-title').innerText = flight.airportNameKo;
+            document.getElementById('alert-subtitle').innerHTML = mapMode === 'taxi'
+                ? `착륙 후 게이트까지 지상 이동 빈도맵<br>최근 ${flightCountScale}편 (${flight.flightNumber})`
+                : `공역 진입 경로 빈도 가시화<br>최근 ${flightCountScale}편 (${flight.flightNumber})`;
+
+            // 3. Collect active routes datasets
+            const rawRoutes = MOCK_SURFACE_ROUTES[activeAirportIcao]?.["arrival"] || [];
+
+            // Apply direction filter logic
+            const filteredRoutes = rawRoutes.filter(route => {
+                if (directionFilterVal === 'all') return true;
+                return route.direction === directionFilterVal;
+            });
+
+            // 4. Plot Polylines on Leaflet Map
+            filteredRoutes.forEach(route => {
+                let calculatedCount = Math.round(route.baseCount * (flightCountScale / 10));
+                let style = getFrequencyLineStyle(route.baseCount);
+
+                // Heatmap Visual Style Override
+                let lineColor = style.color;
+                let lineWeight = style.weight;
+                let lineDash = style.dash ? '5, 8' : null;
+
+                if (visualType === 'heatmap') {
+                    lineColor = '#10b981'; // Green Glowing Heatmap Track
+                    lineWeight = style.weight * 1.5;
+                }
+
+                let polyline = L.polyline(route.points, {
+                    color: lineColor,
+                    weight: lineWeight,
+                    dashArray: lineDash,
+                    opacity: visualType === 'heatmap' ? 0.6 : 0.9,
+                    lineJoin: 'round'
+                }).addTo(routeLayerGroup);
+
+                polyline.bindTooltip(`
+                    <div class="space-y-1 text-xs">
+                        <div class="font-extrabold border-b border-slate-700 pb-1">${route.shortName}</div>
+                        <div class="text-slate-400">전체 경로: <strong class="text-white">${route.label}</strong></div>
+                        <div class="text-slate-400">진행 방향: <strong class="text-blue-400 uppercase font-mono">${route.direction}</strong></div>
+                        <div class="text-slate-400">집계 사용 빈도: <strong class="text-emerald-400 font-mono">${calculatedCount}회 운항</strong></div>
+                    </div>
+                `, { className: 'custom-tooltip', sticky: true });
+
+                // Constant visible labels on map matching screenshot exactly
+                if (visualType === 'frequency' && route.baseCount > 0) {
+                    const labelIcon = L.divIcon({
+                        className: '',
+                        html: `<div class="route-label-badge">${route.shortName}<br/><span style="color:${style.color}">★ ${calculatedCount}회 운항</span></div>`,
+                        iconSize: [120, 30],
+                        iconAnchor: [60, 15]
+                    });
+                    L.marker(route.labelCoord, { icon: labelIcon }).addTo(routeLayerGroup);
+                }
+            });
+
+            // 5. Draw Airport Beacon Pin
+            const targetCoords = flight.arrCenter;
+            const pulseIcon = L.divIcon({
+                className: 'relative flex items-center justify-center',
+                html: `
+                    <span class="absolute inline-flex h-9 w-9 rounded-full bg-blue-500/20 animate-ping"></span>
+                    <span class="relative inline-flex rounded-full h-5 w-5 bg-blue-600 border-2 border-slate-900 shadow"></span>
+                `,
+                iconSize: [20, 20]
+            });
+            L.marker(targetCoords, { icon: pulseIcon }).addTo(routeLayerGroup);
+
+            // Add clear labels for Runway and gate points in Satellite context
+            addStaticMapLabels(activeAirportIcao);
+
+            // 6. Refresh Analytics Dashboard Column Components
+            renderTableMetrics(filteredRoutes);
+            renderDonutChart(filteredRoutes);
+            renderSparklineScrollers(filteredRoutes);
+        }
+
+        // Add visual annotations for runways and core exit taxiways
+        function addStaticMapLabels(icao) {
+            if (icao === 'RKSI') {
+                // Runway 16L Indicator Label Badge
+                const rwy16L = L.divIcon({
+                    className: '',
+                    html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">16L</div>`,
+                    iconSize: [35, 20]
+                });
+                L.marker([37.4525, 126.425], { icon: rwy16L }).addTo(routeLayerGroup);
+
+                // Runway 34R Indicator Label Badge
+                const rwy34R = L.divIcon({
+                    className: '',
+                    html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">34R</div>`,
+                    iconSize: [35, 20]
+                });
+                L.marker([37.4410, 126.442], { icon: rwy34R }).addTo(routeLayerGroup);
+
+                // Key Terminal Gates Label Badges
+                const gates = [
+                    { name: '111', coord: [37.4658, 126.451] },
+                    { name: '37', coord: [37.4528, 126.450] },
+                    { name: '38', coord: [37.4512, 126.450] },
+                    { name: '39', coord: [37.4495, 126.448] },
+                    { name: 'E1', coord: [37.4542, 126.438] },
+                    { name: 'E7', coord: [37.4590, 126.440] },
+                    { name: 'W7', coord: [37.4490, 126.435] }
+                ];
+
+                gates.forEach(g => {
+                    const gateIcon = L.divIcon({
+                        className: '',
+                        html: `<div class="bg-slate-950/80 border border-blue-500 text-white font-black text-[9px] px-1 py-0.5 rounded shadow">${g.name}</div>`,
+                        iconSize: [30, 18]
+                    });
+                    L.marker(g.coord, { icon: gateIcon }).addTo(routeLayerGroup);
+                });
+            }
+        }
+
+        // COLUMN 1: Populates Dynamic Runway Table Grid (Aviation Stats Engine)
+        function renderTableMetrics(routes) {
+            const tbody = document.getElementById('taxiway-table-body');
+            tbody.innerHTML = '';
+
+            if (routes.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center py-8 text-slate-500 font-semibold font-sans">No Data Available</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            routes.forEach((route, idx) => {
+                let calculatedCount = Math.round(route.baseCount * (flightCountScale / 10));
+                let lineStyle = getFrequencyLineStyle(route.baseCount);
+                let percentage = Math.round((route.baseCount / 10) * 100);
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-900/40 transition-all font-sans text-xs">
+                        <td class="py-2.5 text-center font-mono font-bold text-slate-500">${idx + 1}</td>
+                        <td class="py-2.5 font-mono text-slate-100 font-semibold text-[11px]">${route.label}</td>
+                        <td class="py-2.5 text-center">
+                            <div class="inline-flex items-center space-x-2">
+                                <span class="w-4 h-1.5 rounded-sm" style="background-color: ${lineStyle.color}"></span>
+                                <span class="font-extrabold text-white">${calculatedCount} 회</span>
+                            </div>
+                        </td>
+                        <td class="py-2.5 text-right font-mono font-black text-slate-400">${percentage}%</td>
+                    </tr>
+                `;
+            });
+        }
+
+        // COLUMN 2: Beautiful Donut Chart Configuration
+        function renderDonutChart(routes) {
+            const ctx = document.getElementById('gateDistributionChart');
+            const legendContainer = document.getElementById('gate-legends-container');
+            
+            if (!ctx) return;
+
+            legendContainer.innerHTML = '';
+
+            // Extract gates stats dynamically
+            const labels = [];
+            const data = [];
+            const bgColors = [];
+
+            routes.forEach(r => {
+                let calculatedCount = Math.round(r.baseCount * (flightCountScale / 10));
+                let percentage = Math.round((r.baseCount / 10) * 100);
+                
+                labels.push(r.gate);
+                data.push(calculatedCount);
+                bgColors.push(r.color);
+
+                legendContainer.innerHTML += `
+                    <div class="flex items-center justify-between">
+                        <span class="flex items-center">
+                            <span class="w-2 h-2 rounded-full mr-2" style="background-color: ${r.color}"></span>
+                            ${r.gate}
+                        </span>
+                        <span class="font-mono font-bold text-white">${calculatedCount}편 (${percentage}%)</span>
+                    </div>
+                `;
+            });
+
+            if (gateChartInstance) {
+                gateChartInstance.destroy();
+            }
+
+            gateChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: bgColors,
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    cutout: '72%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        // COLUMN 3: Render Micro SVG Sparkline Previews (Landing &rarr; Gate Arrival logs)
+        function renderSparklineScrollers(routes) {
+            const scroller = document.getElementById('mini-scroller-tray');
+            scroller.innerHTML = '';
+
+            for (let i = 1; i <= 5; i++) {
+                let dateStr = `2026-06-0${6 - i}`;
+                let matchingRoute = routes[(i - 1) % routes.length] || routes[0];
+
+                if (!matchingRoute) continue;
+
+                // Path shape sparkline generator
+                const svgWidth = 110;
+                const svgHeight = 44;
+                const pathData = matchingRoute.points.map((p, index) => {
+                    const x = 5 + (index / (matchingRoute.points.length - 1)) * (svgWidth - 10);
+                    const y = svgHeight / 2 + Math.sin(index * 1.5) * 12;
+                    return `${x},${y}`;
+                }).join(' ');
+
+                scroller.innerHTML += `
+                    <div onclick="focusMiniTrackRoute([${matchingRoute.labelCoord}])" 
+                         class="bg-slate-900/60 border border-slate-800 hover:border-blue-500 p-2.5 rounded-lg w-[145px] shrink-0 flex flex-col h-[155px] justify-between relative group transition-all duration-200 cursor-pointer shadow-lg hover:shadow-xl">
+                        
+                        <div class="absolute top-1.5 right-2.5 text-[10.5px] font-black text-slate-600 font-mono">
+                            ${i}
+                        </div>
+                        
+                        <!-- Mini ground movement track visualization -->
+                        <div class="w-full h-16 bg-[#030712] rounded border border-slate-800 flex items-center justify-center relative overflow-hidden">
+                            <svg class="w-full h-full p-1" viewBox="0 0 ${svgWidth} ${svgHeight}">
+                                <polyline fill="none" stroke="${matchingRoute.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${pathData}" />
+                                <circle cx="5" cy="${svgHeight/2}" r="2.5" fill="#f59e0b" />
+                                <circle cx="${svgWidth - 5}" cy="${svgHeight/2 + Math.sin((matchingRoute.points.length-1)*1.5)*12}" r="2.5" fill="#10b981" />
+                            </svg>
+                        </div>
+                        
+                        <div class="mt-1 flex flex-col space-y-0.5">
+                            <span class="text-[9.5px] font-mono text-slate-500">${dateStr}</span>
+                            <span class="text-[11px] font-black text-slate-300 font-mono tracking-wider">KAL498</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Scrollview card click moves camera position
+        function focusMiniTrackRoute(coords) {
+            if (coords && coords.length === 2) {
+                mapObj.flyTo(coords, 16, { duration: 1.0 });
+            }
+        }
+
+        // App Initialization Trigger
+        window.onload = function() {
+            initApp();
+
+            // Keyboard enter search binding
+            document.getElementById('flight-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleFlightSearch();
+                }
+            });
+        };
+    </script>
+</body>
+</html>
