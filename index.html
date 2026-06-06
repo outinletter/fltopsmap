@@ -160,7 +160,7 @@
                     </div>
                     <div class="flex justify-between items-center gap-2">
                         <span class="text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">Data Source:</span>
-                        <span class="font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap truncate">OpenSky Net (<10K ft)</span>
+                        <span class="font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap truncate">OpenSky Trino DB</span>
                     </div>
                     <div class="flex flex-col space-y-1 pt-1.5 border-t border-slate-200 dark:border-slate-800">
                         <span class="text-[10px] text-slate-400 font-semibold uppercase whitespace-nowrap">Airport:</span>
@@ -437,15 +437,17 @@
         let isSatellite = true;
         let isSidebarOpen = false;
 
-        // Internal OpenSky Network API configuration Parameters
-        const OPENSKY_USERNAME = "outinletter-api-client";
-        const OPENSKY_PASSWORD = "HtCTmp8CyoZw7HchPzyVlRkeLqfGVw09";
+        // OPENSKY NETWORK TRINO API CONFIGURATION PARAMETERS
+        // 사용자가 나중에 입력할 Client ID (Username) 및 Client Secret (Password) 변수 영역
+        const OPENSKY_CLIENT_ID = "outinletter-api-client";
+        const OPENSKY_CLIENT_SECRET = "HtCTmp8CyoZw7HchPzyVlRkeLqfGVw09HtCTmp8CyoZw7HchPzyVlRkeLqfGVw09";
+        const OPENSKY_TRINO_COORDINATOR_URL = "https://opensky-network.org/trino/v1/statement";
 
         let mapObj;
         let routeLayerGroup;
         let baseLayer, satelliteLayer, lightBaseLayer;
 
-        // Start App 
+        // Start Map Application 
         function initApp() {
             const flight = FLIGHT_DATABASE[currentFlightId];
 
@@ -535,6 +537,83 @@
             updateDashboardLayout();
         }
 
+        // OPENSKY TRINO REST API QUERY ENGINE (비동기 쿼리 전송 및 루프 폴링 메커니즘)
+        async function fetchTrinoRawData(callsign) {
+            // 사용자 인증정보가 비어있거나 기본 상태이면 예외 발생하여Fallback 시뮬레이션 트리거
+            if (!OPENSKY_CLIENT_ID || !OPENSKY_CLIENT_SECRET || OPENSKY_CLIENT_ID.startsWith("YOUR_")) {
+                throw new Error("OpenSky Trino Credentials not configured.");
+            }
+
+            // OpenSky Network의 callsign 컬럼은 항상 대문자 및 8글자로 패딩처리되어 있음
+            const formattedCallsign = callsign.toUpperCase().padEnd(8, ' ');
+            
+            // Trino SQL Query: 10,000피트 이하(altitude <= 3048m) 필터링, 속도 조건 완전 제외
+            const sqlQuery = `
+                SELECT time, latitude, longitude, altitude, heading 
+                FROM state_vectors_data4 
+                WHERE callsign = '${formattedCallsign}' 
+                  AND altitude <= 3048 
+                  AND time >= ${Math.floor(Date.now() / 1000) - 86400} 
+                ORDER BY time ASC 
+                LIMIT 2000
+            `;
+
+            const authHeader = 'Basic ' + btoa(`${OPENSKY_CLIENT_ID}:${OPENSKY_CLIENT_SECRET}`);
+            
+            // Step 1: Trino statement API 최초 호출 (POST 질의)
+            let response = await fetch(OPENSKY_TRINO_COORDINATOR_URL, {
+                method: 'POST',
+                headers: {
+                    'Authorization': authHeader,
+                    'X-Trino-User': OPENSKY_CLIENT_ID,
+                    'Content-Type': 'text/plain'
+                },
+                body: sqlQuery
+            });
+
+            if (!response.ok) {
+                throw new Error(`Trino Connection Failure: ${response.statusText}`);
+            }
+
+            let queryResult = await response.json();
+            let points = [];
+
+            // Step 2: 비동기식 쿼리가 완료될 때까지 nextUri 주소로 재귀 폴링(Polling) 수행
+            while (queryResult.nextUri) {
+                const nextResponse = await fetch(queryResult.nextUri, {
+                    headers: { 'Authorization': authHeader }
+                });
+                
+                if (!nextResponse.ok) {
+                    throw new Error(`Trino Polling Error: ${nextResponse.statusText}`);
+                }
+                
+                queryResult = await nextResponse.json();
+                
+                // 데이터 페이지 파싱 및 points 누적 수집
+                if (queryResult.data) {
+                    queryResult.data.forEach(row => {
+                        const lat = parseFloat(row[1]);
+                        const lon = parseFloat(row[2]);
+                        const alt = parseFloat(row[3]); // 고도 (Meters)
+                        if (!isNaN(lat) && !isNaN(lon)) {
+                            points.push([lat, lon, alt]);
+                        }
+                    });
+                }
+                
+                // 쿼리가 내부적으로 실패했는지 진단
+                if (queryResult.stats && queryResult.stats.state === 'FAILED') {
+                    throw new Error(`Trino Query Failed: ${queryResult.error ? queryResult.error.message : 'Unknown Reason'}`);
+                }
+                
+                // 촘촘한 트래픽 전송 과부하를 막기 위해 짧은 대기시간(Sleep) 주입
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+
+            return points;
+        }
+
         // AUTO ADS-B DATA SIMULATION & SYNCHRONIZATION WITH CLOUD FIRESTORE
         async function fetchLiveADSBData(flightNumber) {
             let flightData = FLIGHT_DATABASE[flightNumber];
@@ -570,50 +649,32 @@
 
             try {
                 let routesData = null;
-                const callsignPattern = flightData.callsign.toUpperCase().padEnd(8, ' ');
 
-                // OpenSky Network API Integration
-                const statesResponse = await fetch('https://opensky-network.org/api/states/all');
-                if (statesResponse.ok) {
-                    const statesData = await statesResponse.json();
-                    const targetState = statesData.states ? statesData.states.find(s => s[1] && s[1].trim() === flightData.callsign) : null;
-
-                    if (targetState) {
-                        const icao24 = targetState[0];
-                        const trackResponse = await fetch(`https://opensky-network.org/api/tracks/all?icao24=${icao24}&time=0`);
-                        if (trackResponse.ok) {
-                            const trackData = await trackResponse.json();
-                            if (trackData && trackData.path) {
-                                // 고도 필터링: 10,000피트 이하(3,048 미터 이하) 데이터만 수집
-                                const filteredPoints = trackData.path
-                                    .filter(p => p[3] !== null && p[3] <= 3048) // 3048m = 10,000 ft
-                                    .map(p => [p[1], p[2]]);
-
-                                if (filteredPoints.length > 1) {
-                                    routesData = [
-                                        {
-                                            id: `${flightData.arrCode}_OPENSKY_LIVE_01`,
-                                            label: `OpenSky: ${flightData.callsign}`,
-                                            shortName: "OPENSKY LIVE (<10K ft)",
-                                            direction: "north",
-                                            baseCount: 10,
-                                            ratio: "100%",
-                                            gate: "Gate 111",
-                                            color: "#10b981", // Glowing Live Track Green
-                                            points: filteredPoints,
-                                            labelCoord: filteredPoints[Math.floor(filteredPoints.length / 2)]
-                                        }
-                                    ];
-                                    console.log(`Successfully compiled track for ${flightData.callsign} below 10,000 ft from OpenSky Net`);
-                                }
-                            }
+                // 1. OpenSky Trino Raw DB 호출 시도
+                const rawPoints = await fetchTrinoRawData(flightData.callsign);
+                
+                if (rawPoints && rawPoints.length > 1) {
+                    // Trino 데이터 연동 가공
+                    routesData = [
+                        {
+                            id: `${flightData.arrCode}_TRINO_LIVE_01`,
+                            label: `Trino DB: ${flightData.callsign}`,
+                            shortName: "TRINO LIVE (<10K ft)",
+                            direction: "north",
+                            baseCount: 10,
+                            ratio: "100%",
+                            gate: "Gate 111",
+                            color: "#ef4444",
+                            points: rawPoints.map(p => [p[0], p[1]]), // [latitude, longitude]
+                            labelCoord: rawPoints[Math.floor(rawPoints.length / 2)]
                         }
-                    }
+                    ];
+                    console.log(`Successfully pulled and rendered raw tracks under 10,000ft from OpenSky Trino DB`);
                 }
 
-                // Fallback simulation tracks if OpenSky is offline or has no active targets
+                // 2. 인증정보 미설정 또는 Trino 에러 발생 시 예외 없이 시뮬레이션 대체 가동
                 if (!routesData) {
-                    console.log(`OpenSky live aircraft for ${flightNumber} is offline or out of coverage. Building fallback tracks.`);
+                    console.log(`OpenSky Trino DB fallbacked. Building simulated low-altitude surface trajectories.`);
                     const baseRoutes = MOCK_SURFACE_ROUTES[flightData.arrCode]?.["arrival"] || [];
                     routesData = baseRoutes.map(route => ({
                         ...route
@@ -636,7 +697,7 @@
                 }
 
             } catch (err) {
-                console.error("Live OpenSky API connection failover trigger:", err);
+                console.error("OpenSky Trino integration failed, falling back to local simulation memory:", err);
                 const baseRoutes = MOCK_SURFACE_ROUTES[flightData.arrCode]?.["arrival"] || [];
                 MOCK_SURFACE_ROUTES[flightData.arrCode] = { arrival: baseRoutes };
             } finally {
@@ -836,30 +897,6 @@
                 iconSize: [20, 20]
             });
             L.marker(targetCoords, { icon: pulseIcon }).addTo(routeLayerGroup);
-
-            // Add clear labels for Runway points in Satellite context (Gate/Taxiway labels removed)
-            addStaticMapLabels(activeAirportIcao);
-        }
-
-        // Add visual annotations for runways (All alphanumeric taxiway and gate texts removed)
-        function addStaticMapLabels(icao) {
-            if (icao === 'RKSI') {
-                // Runway 16L Indicator Label Badge
-                const rwy16L = L.divIcon({
-                    className: '',
-                    html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">16L</div>`,
-                    iconSize: [35, 20]
-                });
-                L.marker([37.4525, 126.425], { icon: rwy16L }).addTo(routeLayerGroup);
-
-                // Runway 34R Indicator Label Badge
-                const rwy34R = L.divIcon({
-                    className: '',
-                    html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">34R</div>`,
-                    iconSize: [35, 20]
-                });
-                L.marker([37.4410, 126.442], { icon: rwy34R }).addTo(routeLayerGroup);
-            }
         }
 
         // App Initialization Trigger
