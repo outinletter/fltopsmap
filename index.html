@@ -289,16 +289,24 @@
 <pre style="color:#34d399">npm install express http-proxy-middleware cors</pre>
 <pre style="color:#e2e8f0;margin-top:6px">// server.js
 const express = require('express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
 const cors = require('cors');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+
 const app = express();
+
 app.use(cors());
+
 app.use('/trino-proxy', createProxyMiddleware({
   target: 'https://trino.opensky-network.org',
   changeOrigin: true,
-  pathRewrite: { '^/trino-proxy': '' }
+  pathRewrite: { '^/trino-proxy': '' },
+  secure: true
 }));
-app.listen(8080, () => console.log('Proxy ready'));
+
+app.listen(8080, () => {
+  console.log('Trino proxy ready: http://localhost:8080/trino-proxy');
+});
+    
 </pre>
                 <div style="color:#475569;margin-top:4px">→ 프록시 URL 입력: <span style="color:#60a5fa">http://localhost:8080/trino-proxy</span></div>
             </div>
@@ -619,16 +627,26 @@ async function trinoQuery(sql) {
     extractRows(res);
 
     while (res.nextUri) {
-        await sleep(200);
-        const rp = await fetch(res.nextUri, { headers:{'Authorization':auth} });
-        if (!rp.ok) throw new Error(`Trino 폴링 실패 [${rp.status}]`);
-        res = await rp.json();
-        if (res.error) throw new Error(`Trino 쿼리 오류: ${res.error.message}`);
-        extractRows(res);
-        log(`  폴링: ${res.stats?.state||'?'} / rows=${rows.length}`, 'inf');
-    }
-    log(`✓ 완료: ${rows.length}행`, 'ok');
-    return rows;
+    await sleep(200);
+
+    const nextUrl = PROXY_URL
+        ? res.nextUri.replace(
+            'https://trino.opensky-network.org',
+            PROXY_URL.replace(/\/$/, '')
+          )
+        : res.nextUri;
+
+    const rp = await fetch(nextUrl, {
+        headers: { 'Authorization': auth }
+    });
+
+    if (!rp.ok) throw new Error(`Trino 폴링 실패 [${rp.status}]`);
+    res = await rp.json();
+
+    if (res.error) throw new Error(`Trino 쿼리 오류: ${res.error.message}`);
+
+    extractRows(res);
+    log(`  폴링: ${res.stats?.state || '?'} / rows=${rows.length}`, 'inf');
 }
 
 async function fetchSurface(callsign, hoursBack=24) {
