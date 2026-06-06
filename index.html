@@ -213,7 +213,7 @@
 
                 <div>
                     <label class="text-[11px] text-slate-500 block mb-1 font-semibold">Display Type</label>
-                    <div class="grid grid-cols-2 gap-1.5 bg-slate-100 dark:bg-[#070a13] p-1 rounded border border-slate-200 dark:border-slate-800 text-center text-[10.5px]">
+                    <div class="grid grid-cols-2 gap-1.5 bg-slate-100 dark:bg-[#070a13] p-1 rounded border border-slate-200 dark:border-[#1e293b] text-center text-[10.5px]">
                         <button id="type-heatmap" onclick="setVisualType('heatmap')" class="py-1 rounded text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium">Heatmap</button>
                         <button id="type-frequency" onclick="setVisualType('frequency')" class="py-1 rounded bg-slate-800 text-white font-bold font-semibold">Frequency Map</button>
                     </div>
@@ -448,9 +448,9 @@
 
         // OPENSKY NETWORK TRINO API CONFIGURATION PARAMETERS
         // 사용자가 나중에 입력할 Client ID (Username) 및 Client Secret (Password) 변수 영역
-        const OPENSKY_CLIENT_ID = "outinletter-api-client";
-        const OPENSKY_CLIENT_SECRET = "HtCTmp8CyoZw7HchPzyVlRkeLqfGVw09";
-        const OPENSKY_TRINO_COORDINATOR_URL = "https://opensky-network.org/trino/v1/statement";
+        const OPENSKY_CLIENT_ID = "YOUR_OPENSKY_TRINO_CLIENT_ID";
+        const OPENSKY_CLIENT_SECRET = "YOUR_OPENSKY_TRINO_CLIENT_SECRET";
+        const OPENSKY_TRINO_COORDINATOR_URL = "https://trino.opensky-network.org/v1/statement";
 
         let mapObj;
         let routeLayerGroup;
@@ -556,13 +556,23 @@
             // OpenSky Network의 callsign 컬럼은 항상 대문자 및 8글자로 패딩처리되어 있음
             const formattedCallsign = callsign.toUpperCase().padEnd(8, ' ');
             
-            // Trino SQL Query: 10,000피트 이하(altitude <= 3048m) 필터링, 속도 조건 완전 제외
+            // Calculate hour partition timestamps for the last 24 hours (strictly required by Trino)
+            const now = Math.floor(Date.now() / 1000);
+            const currentHourStart = now - (now % 3600);
+            const hoursArray = [];
+            for (let i = 0; i < 24; i++) {
+                hoursArray.push(currentHourStart - (i * 3600));
+            }
+            
+            // Trino SQL Query: 10,000피트 이하(baroaltitude <= 3048m) 필터링, 속도 조건 완전 제외
+            // 컬럼명 대소문자 구별 제거 및 명세 컬럼 lat, lon, baroaltitude 기준 정합화
+            // 공식문서 규격에 맞추어 카탈로그(minio)와 스키마(osky)를 명시한 Fully Qualified Name으로 테이블을 선언합니다.
             const sqlQuery = `
-                SELECT time, latitude, longitude, altitude, heading 
-                FROM state_vectors_data4 
+                SELECT time, lat, lon, baroaltitude, heading 
+                FROM minio.osky.state_vectors_data4 
                 WHERE callsign = '${formattedCallsign}' 
-                  AND altitude <= 3048 
-                  AND time >= ${Math.floor(Date.now() / 1000) - 86400} 
+                  AND baroaltitude <= 3048 
+                  AND hour IN (${hoursArray.join(',')})
                 ORDER BY time ASC 
                 LIMIT 2000
             `;
@@ -602,9 +612,9 @@
                 // 데이터 페이지 파싱 및 points 누적 수집
                 if (queryResult.data) {
                     queryResult.data.forEach(row => {
-                        const lat = parseFloat(row[1]);
-                        const lon = parseFloat(row[2]);
-                        const alt = parseFloat(row[3]); // 고도 (Meters)
+                        const lat = parseFloat(row[1]); // lat
+                        const lon = parseFloat(row[2]); // lon
+                        const alt = parseFloat(row[3]); // baroaltitude (Meters)
                         if (!isNaN(lat) && !isNaN(lon)) {
                             points.push([lat, lon, alt]);
                         }
