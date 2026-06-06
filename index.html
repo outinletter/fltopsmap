@@ -64,7 +64,7 @@
         }
     </style>
 </head>
-<body class="text-slate-200 dark:text-slate-200 h-screen w-screen flex flex-col overflow-hidden select-none bg-slate-50 dark:bg-slate-950">
+<body class="text-slate-200 dark:text-slate-200 h-screen w-screen flex flex-col overflow-hidden select-text bg-slate-50 dark:bg-slate-950">
 
     <!-- TOP CONTROL NAVIGATION PANEL (상단 헤더) -->
     <header class="bg-white dark:bg-[#070a13] border-b border-slate-200 dark:border-[#1e293b] h-14 min-h-[56px] px-4 md:px-6 flex items-center justify-between z-30 shadow-md transition-all flex-shrink-0">
@@ -448,8 +448,8 @@
 
         // OPENSKY NETWORK TRINO API CONFIGURATION PARAMETERS
         // 사용자가 나중에 입력할 Client ID (Username) 및 Client Secret (Password) 변수 영역
-        const OPENSKY_CLIENT_ID = "outinletter-api-client";
-        const OPENSKY_CLIENT_SECRET = "HtCTmp8CyoZw7HchPzyVlRkeLqfGVw09";
+        const OPENSKY_CLIENT_ID = "YOUR_OPENSKY_TRINO_CLIENT_ID";
+        const OPENSKY_CLIENT_SECRET = "YOUR_OPENSKY_TRINO_CLIENT_SECRET";
         const OPENSKY_TRINO_COORDINATOR_URL = "https://opensky-network.org/trino/v1/statement";
 
         let mapObj;
@@ -550,7 +550,7 @@
         async function fetchTrinoRawData(callsign) {
             // 사용자 인증정보가 비어있거나 기본 상태이면 예외 발생하여 Fallback 시뮬레이션 트리거
             if (!OPENSKY_CLIENT_ID || !OPENSKY_CLIENT_SECRET || OPENSKY_CLIENT_ID.startsWith("YOUR_")) {
-                throw new Error("OpenSky Trino Credentials not configured.");
+                throw new Error("Credentials unconfigured. Local mirror active.");
             }
 
             // OpenSky Network의 callsign 컬럼은 항상 대문자 및 8글자로 패딩처리되어 있음
@@ -752,7 +752,12 @@
                     statusBadge.className = "font-bold text-amber-500 dark:text-amber-400 whitespace-nowrap truncate";
                 }
                 if (statusDetails) {
-                    statusDetails.innerText = `ERR: ${err.message || "Connection refused"}. Local mock telemetry loaded.`;
+                    // Check if the error is a CORS/Network "failed to fetch" or similar TypeError
+                    if (err.name === 'TypeError' || (err.message && err.message.toLowerCase().includes('failed to fetch'))) {
+                        statusDetails.innerText = "Network CORS restriction intercepted. Simulated mock telemetry successfully mirrored.";
+                    } else {
+                        statusDetails.innerText = `Offline Fallback: ${err.message || "Connection refused"}.`;
+                    }
                 }
             } finally {
                 // Restore search button states
@@ -951,6 +956,30 @@
                 iconSize: [20, 20]
             });
             L.marker(targetCoords, { icon: pulseIcon }).addTo(routeLayerGroup);
+
+            // Add clear labels for Runway points in Satellite context (Gate/Taxiway labels removed)
+            addStaticMapLabels(activeAirportIcao);
+        }
+
+        // Add visual annotations for runways (All alphanumeric taxiway and gate texts removed)
+        function addStaticMapLabels(icao) {
+            if (icao === 'RKSI') {
+                // Runway 16L Indicator Label Badge (물리적 북서쪽 진입단 끝)
+                const rwy16L = L.divIcon({
+                    className: '',
+                    html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">16L</div>`,
+                    iconSize: [35, 20]
+                });
+                L.marker([37.4615, 126.4215], { icon: rwy16L }).addTo(routeLayerGroup);
+
+                // Runway 34R Indicator Label Badge (물리적 남동쪽 진입단 끝)
+                const rwy34R = L.divIcon({
+                    className: '',
+                    html: `<div class="bg-slate-950/90 border border-red-500 text-white font-extrabold text-[10px] px-1.5 py-0.5 rounded shadow">34R</div>`,
+                    iconSize: [35, 20]
+                });
+                L.marker([37.4270, 126.4358], { icon: rwy34R }).addTo(routeLayerGroup);
+            }
         }
 
         // App Initialization Trigger
